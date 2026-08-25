@@ -1,0 +1,46 @@
+/* ── Mehfooze Global Styles ────────────────────────────────────────── */
+
+:root {
+  --color-safe: #22c55e;      /* AQI Good */
+  --color-moderate: #eab308;  /* AQI Moderate */
+  --color-unhealthy: #f97316; /* AQI Unhealthy for Sensitive */
+  --color-hazardous: #ef4444; /* AQI Hazardous */
+  --color-brand: #1d4ed8;     /* Mehfooze brand blue */
+  --color-bg: #0f172a;        /* Dark slate background */
+  --color-surface: #1e293b;
+  --color-text: #f1f5f9;
+  --color-muted: #94a3b8;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+a {
+  color: var(--color-brand);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+/* Leaflet map container */
+.map-container {
+  height: 60vh;
+  width: 100%;
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
