@@ -38,8 +38,11 @@ class Settings(BaseSettings):
     @property
     def allowed_origins(self) -> List[str]:
         if self.app_env == "production":
-            # Replace with your actual Vercel deployment URL
-            return ["https://mehfooze.vercel.app", "https://mehfooze.app"]
+            return [
+                "https://mehfooze.vercel.app",
+                "https://web-henna-nine-64.vercel.app",
+                "https://mehfooze.app",
+            ]
         return [
             "http://localhost:5173",
             "http://127.0.0.1:5173",

@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: mehfooze-api
+    runtime: python
+    plan: free
+    buildCommand: pip install -r app/requirements.txt
+    startCommand: cd app && uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        value: sqlite:///./mehfooze_dev.db
+      - key: AQICN_TOKEN
+        value: ""
+      - key: APP_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: info
+    healthCheckPath: /health
