@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "Mehfooze",
+    "slug": "mehfooze",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "backgroundColor": "#f4fbf3"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.mehfooze.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#f4fbf3"
+      },
+      "package": "com.mehfooze.app"
+    },
+    "plugins": []
+  }
+}

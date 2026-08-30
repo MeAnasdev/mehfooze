@@ -1,4 +1,11 @@
-import type { Advisory } from '../types/api'
+import type { Advisory } from '../services/api'
+
+const PROFILES = [
+  { id: 'citizen', label: 'Citizen', icon: 'person' },
+  { id: 'parent', label: 'Parent', icon: 'child_care' },
+  { id: 'patient', label: 'Patient', icon: 'pulmonology' },
+  { id: 'worker', label: 'Worker', icon: 'construction' },
+]
 
 interface AdvisoryPanelProps {
   advisory: Advisory | null
@@ -6,57 +13,51 @@ interface AdvisoryPanelProps {
   onProfileChange: (p: string) => void
 }
 
-const PROFILES = [
-  { id: 'citizen', label: 'Citizen' },
-  { id: 'parent', label: 'Parent / Child' },
-  { id: 'patient', label: 'Respiratory Patient' },
-  { id: 'worker', label: 'Outdoor Worker' },
-]
-
-/**
- * Displays role-specific plain-language advisory for the current forecast.
- */
-export default function AdvisoryPanel({
-  advisory,
-  profile,
-  onProfileChange,
-}: AdvisoryPanelProps) {
+export default function AdvisoryPanel({ advisory, profile, onProfileChange }: AdvisoryPanelProps) {
   return (
-    <section className="advisory-panel">
-      <h2 className="advisory-panel__title">Advisory</h2>
+    <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-6 shadow-ambient">
+      <h2 className="font-title-md text-title-md text-on-surface mb-4">Health Advisory</h2>
 
-      {/* Profile toggles */}
-      <div className="profile-tabs" role="tablist">
+      <div className="flex gap-2 mb-4 flex-wrap">
         {PROFILES.map((p) => (
           <button
             key={p.id}
-            role="tab"
-            aria-selected={profile === p.id}
-            className={`profile-tab ${profile === p.id ? 'profile-tab--active' : ''}`}
             onClick={() => onProfileChange(p.id)}
+            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors flex items-center gap-1 ${
+              profile === p.id
+                ? 'bg-primary-container/20 text-primary border border-primary'
+                : 'bg-surface border border-outline-variant text-on-surface-variant hover:bg-surface-container-high'
+            }`}
           >
+            <span className="material-symbols-outlined text-[16px]">{p.icon}</span>
             {p.label}
           </button>
         ))}
       </div>
 
-      {/* Advisory message */}
-      <div className="advisory-body" aria-live="polite">
-        {advisory ? (
-          <>
-            <p className="advisory-message">{advisory.message}</p>
-            {advisory.actions.length > 0 && (
-              <ul className="advisory-actions">
-                {advisory.actions.map((action, i) => (
-                  <li key={i}>{action}</li>
-                ))}
-              </ul>
-            )}
-          </>
-        ) : (
-          <p className="advisory-loading">Loading advisory…</p>
-        )}
-      </div>
-    </section>
+      {advisory ? (
+        <div className="space-y-3">
+          <span
+            className="inline-block px-3 py-1 rounded-full text-white text-xs font-bold"
+            style={{ background: advisory.aqiColour || '#00e400' }}
+          >
+            AQI {advisory.aqi} &middot; {advisory.aqiCategory}
+          </span>
+          <p className="font-body-md text-body-md text-on-surface-variant leading-relaxed">{advisory.message}</p>
+          {advisory.actions.length > 0 && (
+            <ul className="space-y-2">
+              {advisory.actions.map((a, i) => (
+                <li key={i} className="text-sm text-on-surface-variant flex items-start gap-2">
+                  <span className="material-symbols-outlined text-primary text-[16px] mt-0.5">check_circle</span>
+                  {a}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ) : (
+        <p className="font-body-md text-body-md text-on-surface-variant">Loading advisory...</p>
+      )}
+    </div>
   )
 }

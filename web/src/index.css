@@ -1,15 +1,13 @@
-/* ── Mehfooze Global Styles ────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Inter:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 :root {
-  --color-safe: #22c55e;      /* AQI Good */
-  --color-moderate: #eab308;  /* AQI Moderate */
-  --color-unhealthy: #f97316; /* AQI Unhealthy for Sensitive */
-  --color-hazardous: #ef4444; /* AQI Hazardous */
-  --color-brand: #1d4ed8;     /* Mehfooze brand blue */
-  --color-bg: #0f172a;        /* Dark slate background */
-  --color-surface: #1e293b;
-  --color-text: #f1f5f9;
-  --color-muted: #94a3b8;
+  --color-primary: #006c46;
+  --color-primary-container: #00b074;
 }
 
 *,
@@ -20,16 +18,27 @@
   padding: 0;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  background-color: var(--color-bg);
-  color: var(--color-text);
+  font-family: 'Public Sans', sans-serif;
+  background-color: #f4fbf3;
+  color: #161d19;
   line-height: 1.6;
   min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.dark body,
+.dark {
+  background-color: #161d19;
+  color: #f4fbf3;
 }
 
 a {
-  color: var(--color-brand);
+  color: #006c46;
   text-decoration: none;
 }
 
@@ -37,10 +46,106 @@ a:hover {
   text-decoration: underline;
 }
 
-/* Leaflet map container */
-.map-container {
-  height: 60vh;
-  width: 100%;
-  border-radius: 0.75rem;
-  overflow: hidden;
+/* Material Symbols */
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+.material-symbols-outlined.fill {
+  font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+/* Splash screen animation */
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes pulseMarker {
+  0% { box-shadow: 0 0 0 0 rgba(0, 108, 70, 0.4); }
+  70% { box-shadow: 0 0 0 10px rgba(0, 108, 70, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(0, 108, 70, 0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.6s ease-out forwards;
+}
+
+.animate-pulse-slow {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.5s ease-out forwards;
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.animate-pulse-marker {
+  animation: pulseMarker 2s infinite;
+}
+
+/* Loading spinner */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loading-spinner {
+  width: 2rem;
+  height: 2rem;
+  border: 3px solid #bccabf;
+  border-top-color: #006c46;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.dark .loading-spinner {
+  border-color: #3d4a41;
+  border-top-color: #00b074;
+}
+
+/* Glass card utility */
+.glass-card {
+  @apply bg-surface-container-lowest border border-outline-variant rounded-xl shadow-ambient;
+}
+
+/* AQI color utilities */
+.aqi-good { background-color: #00e400; }
+.aqi-moderate { background-color: #ffff00; }
+.aqi-sensitive { background-color: #ff7e00; }
+.aqi-unhealthy { background-color: #ff0000; }
+.aqi-very { background-color: #8f3f97; }
+.aqi-hazardous { background-color: #7e0023; }
+
+/* Dial gradient */
+.dial-gradient {
+  background: conic-gradient(from 180deg, #53de9e 0%, #00b074 55%, #e1e3e4 55%, #e1e3e4 100%);
+  border-radius: 50%;
+}
+
+/* AQI gradient for dial */
+.aqi-gradient {
+  background: conic-gradient(from 180deg at 50% 50%, #00b074 0deg, #53de9e 90deg, #ffdad6 180deg, #ba1a1a 270deg, #00b074 360deg);
+}
+
+/* Safe bottom padding for mobile nav */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }

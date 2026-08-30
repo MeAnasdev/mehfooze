@@ -1,67 +1,185 @@
 """
-Advisory service — translates AQI forecast into plain-language, role-specific guidance.
+Advisory service — translates real-time AQI into plain-language, role-specific guidance.
 
-Rule table (AQI → message + actions) per profile.
-An AI layer can augment these rules in a future phase.
+AQI is read from the database (latest reading across all zones).
+Falls back to the Open-Meteo current reading if DB is empty.
 """
 
-# Rule-based advisory matrix  {profile: [(aqi_threshold, message, [actions])]}
+import logging
+import httpx
+from datetime import datetime, timezone, timedelta
+from sqlalchemy import func
+from sqlalchemy.orm import Session
+try:
+    from app.models.reading import AqiReading
+    from app.database import SessionLocal
+except ModuleNotFoundError:
+    from models.reading import AqiReading
+    from database import SessionLocal
+
+logger = logging.getLogger(__name__)
+
+# ── Advisory rule matrix ───────────────────────────────────────────────
+# Format: {profile: [(aqi_threshold, headline, [action_bullets])]}
+# Thresholds follow the US EPA AQI breakpoints exactly.
 _RULES: dict[str, list[tuple[int, str, list[str]]]] = {
     "citizen": [
-        (50,  "Air quality is good. Enjoy outdoor activities freely.", []),
-        (100, "Air quality is moderate. Sensitive individuals should limit prolonged outdoor exposure.", ["Avoid heavy outdoor exercise if you have asthma or heart conditions."]),
-        (150, "Air quality is unhealthy for sensitive groups. Reduce outdoor time.", ["Wear an N95 mask outdoors.", "Keep windows closed."]),
-        (200, "Air quality is unhealthy. Avoid outdoor activities.", ["Stay indoors as much as possible.", "Use an air purifier if available."]),
-        (300, "Air quality is very unhealthy. Stay indoors.", ["Do not go outside unless essential.", "Wear an N95 mask even briefly outdoors."]),
-        (999, "Hazardous air quality. Emergency conditions.", ["Stay indoors. Seal gaps in doors and windows.", "Seek medical attention if you experience breathing difficulty."]),
+        (50,  "Air quality is Good. Safe for all outdoor activities.",
+              []),
+        (100, "Air quality is Moderate. Generally safe, but unusually sensitive people may want to limit prolonged outdoor exertion.",
+              ["If you feel respiratory discomfort outdoors, move inside."]),
+        (150, "Air quality is Unhealthy for Sensitive Groups. Children, elderly, and those with lung or heart disease should reduce outdoor time.",
+              ["Wear an N95 mask for outdoor activities.", "Keep windows closed during peak pollution hours (6–10 AM)."]),
+        (200, "Air quality is Unhealthy. Everyone may begin to experience health effects.",
+              ["Stay indoors as much as possible.", "Use an air purifier if available.", "Wear an N95 mask if you must go outside."]),
+        (300, "Air quality is Very Unhealthy. Health warnings of emergency conditions.",
+              ["Avoid all outdoor activities.", "Wear an N95 mask even for brief outdoor exposure.", "Seal gaps in doors and windows."]),
+        (999, "Air quality is Hazardous. Emergency conditions — entire population is likely to be affected.",
+              ["Do not go outside.", "Seal your home.", "Seek medical attention if you experience breathing difficulty."]),
     ],
     "parent": [
-        (50,  "Good air quality — children can play outside safely.", []),
-        (100, "Moderate air quality. Children with asthma should stay indoors during peak hours (6–10 AM).", ["Monitor children with respiratory conditions."]),
-        (150, "Outdoor AQI is unhealthy today — keep children indoors, especially 6–10 AM.", ["Cancel outdoor PE or recess.", "Ensure good indoor ventilation."]),
-        (200, "Unhealthy air. Keep children indoors for the day.", ["No outdoor activities.", "Run an air purifier in children's rooms."]),
-        (999, "Hazardous. Children must not go outside.", ["School should consider closure or indoor-only day.", "Contact school administration."]),
+        (50,  "Good air quality — children can play outside safely all day.",
+              []),
+        (100, "Moderate air quality. Healthy children are fine outdoors; those with asthma should avoid strenuous activity during peak hours (6–10 AM).",
+              ["Monitor children with respiratory conditions closely."]),
+        (150, "Unhealthy for Sensitive Groups. Keep children with asthma or allergies indoors, especially 6–10 AM and after sunset.",
+              ["Cancel or move outdoor PE and recess indoors.", "Ensure good indoor ventilation with windows closed.", "Use an air purifier in children's bedrooms."]),
+        (200, "Unhealthy air. Keep all children indoors for the day.",
+              ["No outdoor activities today.", "Run an air purifier in children's rooms.", "Avoid school runs in heavy traffic — use alternate routes."]),
+        (300, "Very Unhealthy. Children must not go outside at all.",
+              ["All outdoor activities cancelled.", "Contact the school to confirm indoor-only protocols.", "Keep children home if the school cannot guarantee sealed indoor air."]),
+        (999, "Hazardous. Children must stay home.",
+              ["Do not send children to school or outside.", "Seek medical attention immediately if a child has breathing difficulty.", "Contact emergency services if symptoms are severe."]),
     ],
     "patient": [
-        (50,  "Good conditions for respiratory patients today.", []),
-        (100, "Moderate AQI. Take your prescribed medication before going out.", ["Carry your inhaler.", "Avoid high-traffic areas."]),
-        (150, "Unhealthy for sensitive groups. Avoid outdoor exposure.", ["Stay indoors.", "Use prescribed medication as directed.", "Wear N95 if you must go out."]),
-        (200, "Unhealthy air. High risk for respiratory patients.", ["Do not go outside.", "Contact your doctor if symptoms worsen."]),
-        (999, "Hazardous. Seek medical advice immediately if experiencing symptoms.", ["Emergency level — stay indoors.", "Call emergency services if breathing is severely impaired."]),
+        (50,  "Good conditions for respiratory patients. Usual activities are safe.",
+              []),
+        (100, "Moderate AQI. Take your prescribed medication before going out. Avoid heavy outdoor exertion.",
+              ["Carry your inhaler at all times.", "Avoid high-traffic roads and construction areas."]),
+        (150, "Unhealthy for Sensitive Groups. High risk for respiratory and cardiac patients.",
+              ["Stay indoors.", "Use prescribed medication as directed by your doctor.", "Wear an N95 mask if outdoor exposure is unavoidable."]),
+        (200, "Unhealthy. Do not go outside today.",
+              ["Do not leave home unless medically necessary.", "Contact your doctor if symptoms worsen.", "Use your nebuliser or rescue inhaler if you experience tightness."]),
+        (300, "Very Unhealthy. Emergency precautions for patients with asthma, COPD, or heart disease.",
+              ["Stay indoors with windows sealed.", "Have emergency medication ready.", "Call your doctor proactively — do not wait for symptoms."]),
+        (999, "Hazardous. Seek medical advice immediately.",
+              ["This is a medical emergency risk level.", "Stay indoors with air purification.", "Call emergency services if you have any breathing difficulty."]),
     ],
     "worker": [
-        (50,  "Safe conditions for outdoor work today.", []),
-        (100, "Moderate AQI. Take regular breaks in ventilated areas.", ["Wear a basic dust mask if working in heavy traffic."]),
-        (150, "Unhealthy for prolonged outdoor work. Limit exposure.", ["Wear an N95 mask.", "Take 10-minute indoor breaks every hour.", "Stay hydrated."]),
-        (200, "Unhealthy conditions. Minimise outdoor work shifts.", ["Full N95 coverage required.", "Seek shade and limit continuous outdoor time to 30 min."]),
-        (999, "Hazardous. Outdoor work should be suspended.", ["Do not work outdoors.", "Report conditions to your supervisor."]),
+        (50,  "Safe conditions for outdoor work today.",
+              []),
+        (100, "Moderate AQI. Outdoor work is generally safe; take regular breaks.",
+              ["Wear a basic dust/surgical mask if working near traffic or construction.", "Stay hydrated."]),
+        (150, "Unhealthy for Sensitive Groups. Limit prolonged outdoor exposure for all workers.",
+              ["Wear an N95 mask throughout your outdoor shift.", "Take a 10-minute indoor break every hour.", "Stay hydrated — dehydration worsens respiratory impact."]),
+        (200, "Unhealthy. Minimise outdoor work shifts.",
+              ["Full N95 coverage required for all outdoor work.", "Rotate workers to limit individual exposure time to 30 minutes continuously.", "Report deteriorating symptoms to your supervisor immediately."]),
+        (300, "Very Unhealthy. Outdoor work shifts should be suspended or moved indoors.",
+              ["Do not perform outdoor work unless safety equipment (N95 + goggles) is available.", "Escalate to management for emergency rotation or suspension."]),
+        (999, "Hazardous. All outdoor work must be suspended immediately.",
+              ["Do not work outdoors under any circumstances.", "Report the situation to your site safety officer.", "Seek medical attention if you have already been exposed."]),
     ],
     "school": [
-        (100, "GO — Outdoor activities are safe today.", []),
-        (150, "CAUTION — Outdoor activities for sensitive students should be moved indoors.", ["Shorten outdoor periods.", "Keep asthmatic students inside."]),
-        (999, "NO-GO — Outdoor activities should be cancelled today.", ["All physical education and recess should be held indoors.", "Notify parents if outdoor exposure occurred."]),
+        (100, "GO — Air quality is safe for all outdoor school activities today.",
+              []),
+        (150, "CAUTION — Move outdoor activities indoors for students with asthma or allergies. Healthy students may have reduced outdoor time.",
+              ["Shorten outdoor periods to under 30 minutes.", "Keep asthmatic and allergic students indoors.", "Inform parents of the caution advisory."]),
+        (999, "NO-GO — All outdoor activities must be cancelled today.",
+              ["All physical education and recess should be held indoors.", "Keep school windows closed; use fans or AC in recirculation mode.", "Send a notification to parents."]),
     ],
 }
 
 
-def _current_max_aqi() -> float:
+def get_current_max_aqi(db: Session | None = None) -> float:
     """
-    Placeholder — in production this queries the latest reading from the DB or cache.
-    Returns a representative city-wide AQI.
+    Get the current maximum AQI across all Lahore zones.
+
+    Priority:
+      1. True maximum AQI from DB readings in the last 2 hours (covers all zones)
+      2. Live Open-Meteo fetch for Gulberg as fallback
+      3. Default 150.0 if everything fails
+
+    Using a 2-hour window ensures we capture the most recent ingestion batch
+    for every zone, not just the single most-recently-written row (which could
+    be from only one zone and understate the worst current air quality).
     """
-    # TODO: replace with a real DB / cache query
-    return 145.0
+    # Try DB first — max AQI across all zones in the last 2 hours
+    if db:
+        try:
+            cutoff = datetime.now(timezone.utc) - timedelta(hours=2)
+            max_aqi = (
+                db.query(func.max(AqiReading.aqi))
+                .filter(AqiReading.recorded_at >= cutoff)
+                .scalar()
+            )
+            if max_aqi is not None:
+                return float(max_aqi)
+            # If no readings in the last 2 hours, fall back to the single latest row
+            latest = (
+                db.query(AqiReading)
+                .order_by(AqiReading.recorded_at.desc())
+                .first()
+            )
+            if latest:
+                return float(latest.aqi)
+        except Exception as exc:
+            logger.warning("DB AQI read failed: %s", exc)
+
+    # Fallback: live Open-Meteo for Gulberg (Lahore centre)
+    try:
+        resp = httpx.get(
+            "https://air-quality-api.open-meteo.com/v1/air-quality",
+            params={
+                "latitude":  31.5204,
+                "longitude": 74.3587,
+                "current":   "us_aqi",
+                "timezone":  "Asia/Karachi",
+                "domains":   "cams_global",
+            },
+            timeout=8,
+        )
+        resp.raise_for_status()
+        aqi = resp.json()["current"].get("us_aqi")
+        if aqi is not None:
+            return float(aqi)
+    except Exception as exc:
+        logger.warning("Open-Meteo advisory AQI fallback failed: %s", exc)
+
+    # Last resort default
+    return 150.0
 
 
-def build_advisory(profile: str) -> dict:
-    """Return {message, actions} for the given profile based on current AQI."""
-    aqi = _current_max_aqi()
+def build_advisory(profile: str, db: Session | None = None) -> dict:
+    """
+    Return {message, actions, aqi} for the given profile based on current AQI.
+    """
+    aqi = get_current_max_aqi(db)
     rules = _RULES.get(profile, _RULES["citizen"])
 
     for threshold, message, actions in rules:
         if aqi <= threshold:
-            return {"message": message, "actions": actions}
+            return {"message": message, "actions": actions, "aqi": aqi}
 
-    # Fallback to last rule
+    # Fallback to the most severe rule
     _, message, actions = rules[-1]
-    return {"message": message, "actions": actions}
+    return {"message": message, "actions": actions, "aqi": aqi}
+
+
+def aqi_category(aqi: float) -> str:
+    """Return the EPA AQI category label for a given AQI value."""
+    if aqi <= 50:   return "Good"
+    if aqi <= 100:  return "Moderate"
+    if aqi <= 150:  return "Unhealthy for Sensitive Groups"
+    if aqi <= 200:  return "Unhealthy"
+    if aqi <= 300:  return "Very Unhealthy"
+    return "Hazardous"
+
+
+def aqi_colour(aqi: float) -> str:
+    """Return the EPA hex colour code for a given AQI value."""
+    if aqi <= 50:   return "#00e400"
+    if aqi <= 100:  return "#ffff00"
+    if aqi <= 150:  return "#ff7e00"
+    if aqi <= 200:  return "#ff0000"
+    if aqi <= 300:  return "#8f3f97"
+    return "#7e0023"

@@ -5,8 +5,8 @@ __pycache__/
 .venv/
 venv/
 env/
-.env
 *.egg-info/
+mehfooze_dev.db
 dist/
 build/
 
@@ -14,6 +14,10 @@ build/
 node_modules/
 web/dist/
 web/.vite/
+
+# Environment files (contain secrets)
+app/.env
+web/.env
 
 # OS
 .DS_Store
@@ -28,3 +32,6 @@ Thumbs.db
 
 # Alembic auto
 migrations/versions/*.pyc
+
+# Logs
+*.log

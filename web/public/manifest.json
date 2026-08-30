@@ -1,0 +1,22 @@
+{
+  "name": "Mehfooze",
+  "short_name": "Mehfooze",
+  "description": "AI-Powered City Safety & Advisory Companion",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#10B981",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/ghost-logo.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/ghost-logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
