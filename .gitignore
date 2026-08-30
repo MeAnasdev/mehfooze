@@ -35,3 +35,4 @@ migrations/versions/*.pyc
 
 # Logs
 *.log
+.vercel
