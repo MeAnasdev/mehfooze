@@ -5,6 +5,9 @@ const OPEN_METEO_BASE = 'https://api.open-meteo.com/v1'
 const OPEN_METEO_AQI = 'https://air-quality-api.open-meteo.com/v1'
 const NOMINATIM_BASE = 'https://nominatim.openstreetmap.org'
 
+// Backend API base URL — empty string means use Vite proxy (dev), full URL for production
+const API_BASE = import.meta.env.VITE_API_URL || ''
+
 export interface AqiReading {
   aqi: number
   pm25: number
@@ -67,7 +70,7 @@ export interface RioTip {
 // Fetch advisory from backend (or build locally if backend unavailable)
 export async function fetchAdvisory(profile: string): Promise<Advisory> {
   try {
-    const res = await fetch(`/api/advisory/${profile}`)
+    const res = await fetch(`${API_BASE}/api/advisory/${profile}`)
     if (res.ok) return res.json()
   } catch {}
   // Fallback: build locally from AQICN data
@@ -258,7 +261,7 @@ export async function fetchGlobalRankings(): Promise<CityRanking[]> {
 // Fetch proactive tip from Rio
 export async function fetchTip(profile: string = 'citizen', aqi: number = 50): Promise<RioTip> {
   try {
-    const res = await fetch(`/api/tips?profile=${profile}&aqi=${aqi}`)
+    const res = await fetch(`${API_BASE}/api/tips?profile=${profile}&aqi=${aqi}`)
     if (res.ok) return res.json()
   } catch {}
   // Fallback tip

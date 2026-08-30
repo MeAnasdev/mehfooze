@@ -1,6 +1,6 @@
 import { AqiReading, ForecastPoint, Advisory, CityRanking, RouteResult } from '../types';
 
-const API_BASE = 'http://localhost:8000/api';
+const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000/api';
 
 async function apiFetch<T>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`);

@@ -16,10 +16,32 @@
     },
     "android": {
       "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#f4fbf3"
       },
-      "package": "com.mehfooze.app"
+      "package": "com.mehfooze.app",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "INTERNET",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE",
+        "SCHEDULE_EXACT_ALARM"
+      ]
     },
-    "plugins": []
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#006c46"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "546e6af5-147b-4ca1-990f-9a6fcbc09e42"
+      }
+    }
   }
 }
