@@ -2,17 +2,18 @@
 Admin endpoints — content management, data source health, and system stats.
 """
 
+import uuid
 from datetime import datetime, timezone, timedelta
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from sqlalchemy import func
 
 from app.database import get_db
 from app.models.reading import AqiReading
 from app.models.zone import Zone
 from app.models.notification import FcmToken
 from app.models.hazard import HazardAlert
+from app.models.content import Content
 from app.services.ingest import LAHORE_ZONES
 
 router = APIRouter(tags=["admin"])
@@ -37,7 +38,6 @@ class DataHealth(BaseModel):
 
 @router.get("/admin/stats", response_model=SystemStats)
 def get_stats(db: Session = Depends(get_db)):
-    """Get system-wide statistics."""
     total_zones = db.query(Zone).count()
     total_readings = db.query(AqiReading).count()
     latest = db.query(AqiReading).order_by(AqiReading.recorded_at.desc()).first()
@@ -62,7 +62,6 @@ def get_stats(db: Session = Depends(get_db)):
 
 @router.get("/admin/health", response_model=list[DataHealth])
 def get_data_health(db: Session = Depends(get_db)):
-    """Check data source health per zone."""
     results = []
     for zone in LAHORE_ZONES:
         reading = (
@@ -94,29 +93,37 @@ class ContentItem(BaseModel):
     active: bool = True
 
 
-# In-memory content store (would be DB-backed in production)
-_CONTENT: list[ContentItem] = [
-    ContentItem(id="1", title="What is PM2.5?", category="education", body="Fine particulate matter smaller than 2.5 micrometers..."),
-    ContentItem(id="2", title="How to wear an N95 mask", category="education", body="Ensure a tight seal around nose and mouth..."),
-    ContentItem(id="3", title="Air purifier guide", category="education", body="Choose a purifier with HEPA filter for best results..."),
+# Seed default content if table is empty
+_DEFAULT_CONTENT = [
+    {"id": "1", "title": "What is PM2.5?", "category": "education", "body": "Fine particulate matter smaller than 2.5 micrometers..."},
+    {"id": "2", "title": "How to wear an N95 mask", "category": "education", "body": "Ensure a tight seal around nose and mouth..."},
+    {"id": "3", "title": "Air purifier guide", "category": "education", "body": "Choose a purifier with HEPA filter for best results..."},
 ]
 
 
+def _seed_content(db: Session):
+    if db.query(Content).count() == 0:
+        for item in _DEFAULT_CONTENT:
+            db.add(Content(**item))
+        db.commit()
+
+
 @router.get("/admin/content", response_model=list[ContentItem])
-def list_content():
-    """List all educational content items."""
-    return _CONTENT
+def list_content(db: Session = Depends(get_db)):
+    _seed_content(db)
+    rows = db.query(Content).order_by(Content.created_at).all()
+    return [ContentItem(id=r.id, title=r.title, category=r.category, body=r.body, active=r.active) for r in rows]
 
 
 @router.post("/admin/content", response_model=ContentItem)
-def create_content(item: ContentItem):
-    """Create or update an educational content item."""
-    existing = next((c for c in _CONTENT if c.id == item.id), None)
+def create_content(item: ContentItem, db: Session = Depends(get_db)):
+    existing = db.query(Content).filter(Content.id == item.id).first()
     if existing:
         existing.title = item.title
         existing.category = item.category
         existing.body = item.body
         existing.active = item.active
     else:
-        _CONTENT.append(item)
+        db.add(Content(id=item.id or str(uuid.uuid4())[:8], title=item.title, category=item.category, body=item.body, active=item.active))
+    db.commit()
     return item

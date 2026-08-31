@@ -113,14 +113,14 @@ export default function MapScreen() {
         >
           {zones.map((zone) => (
             <Marker
-              key={zone.stationId}
+              key={zone.zone_id}
               coordinate={{ latitude: zone.lat, longitude: zone.lng }}
               pinColor={aqiColor(zone.aqi)}
               onCalloutPress={() => setSelected(zone)}
             >
               <Callout>
                 <View style={styles.callout}>
-                  <Text style={styles.calloutTitle}>{zone.name}</Text>
+                  <Text style={styles.calloutTitle}>{zone.station}</Text>
                   <Text style={[styles.calloutAqi, { color: aqiColor(zone.aqi) }]}>
                     AQI {Math.round(zone.aqi)}
                   </Text>
@@ -152,7 +152,7 @@ export default function MapScreen() {
       {selected && (
         <View style={styles.selectedBar}>
           <View style={styles.selectedInfo}>
-            <Text style={styles.selectedName}>{selected.name}</Text>
+            <Text style={styles.selectedName}>{selected.station}</Text>
             <Text style={styles.selectedDetail}>PM2.5: {Math.round(selected.pm25)} · PM10: {Math.round(selected.pm10)}</Text>
           </View>
           <View style={[styles.selectedBadge, { backgroundColor: aqiColor(selected.aqi) }]}>

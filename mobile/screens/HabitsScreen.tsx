@@ -1,44 +1,92 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, FontFamily, FontSize, Spacing } from '../constants/theme';
 import RioCard from '../components/RioCard';
+import { fetchTip, fetchLahoreAqi } from '../services/api';
 
-const CHECKLIST_ITEMS = [
-  { id: '1', label: 'Wear N95 mask', icon: 'medkit' as const },
-  { id: '2', label: 'Keep windows closed', icon: 'lock-closed' as const },
-  { id: '3', label: 'Delay commute', icon: 'car' as const },
-];
+interface ChecklistItem {
+  id: string;
+  label: string;
+  icon: React.ComponentProps<typeof Ionicons>['name'];
+}
+
+function getChecklistForAqi(aqi: number): ChecklistItem[] {
+  if (aqi <= 50) {
+    return [
+      { id: '1', label: 'Enjoy outdoor activities', icon: 'sunny' },
+      { id: '2', label: 'Open windows for fresh air', icon: 'open-outline' },
+      { id: '3', label: 'Exercise outdoors', icon: 'bicycle' },
+    ];
+  }
+  if (aqi <= 100) {
+    return [
+      { id: '1', label: 'Wear mask if sensitive', icon: 'medkit' },
+      { id: '2', label: 'Limit prolonged outdoor exertion', icon: 'walk' },
+      { id: '3', label: 'Keep windows partially closed', icon: 'lock-closed' },
+    ];
+  }
+  return [
+    { id: '1', label: 'Wear N95 mask', icon: 'medkit' },
+    { id: '2', label: 'Keep windows closed', icon: 'lock-closed' },
+    { id: '3', label: 'Delay outdoor commute', icon: 'car' },
+  ];
+}
 
 const ARTICLES = [
   { title: 'Understanding PM2.5', readTime: '3 min read' },
   { title: 'Air Purifier Tips', readTime: '5 min read' },
+  { title: 'N95 Mask Guide', readTime: '2 min read' },
 ];
 
 export default function HabitsScreen() {
   const [checked, setChecked] = useState<Record<string, boolean>>({});
+  const [tip, setTip] = useState('');
+  const [aqi, setAqi] = useState(0);
+  const [loading, setLoading] = useState(true);
 
   const toggle = (id: string) => setChecked((p) => ({ ...p, [id]: !p[id] }));
   const completedCount = Object.values(checked).filter(Boolean).length;
+
+  useEffect(() => {
+    fetchLahoreAqi()
+      .then((zones) => {
+        const max = zones.reduce((m, z) => (z.aqi > m.aqi ? z : m), zones[0]);
+        setAqi(max.aqi);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+
+    fetchTip('citizen', 100)
+      .then((res) => setTip(res.tip))
+      .catch(() => {});
+  }, []);
+
+  const checklist = getChecklistForAqi(aqi);
+
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.center]}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+      </View>
+    );
+  }
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.title}>Safe Habits</Text>
       <Text style={styles.subtitle}>Your personalized environmental action plan.</Text>
 
-      <RioCard
-        message="Today is an indoor activity day."
-        subtitle="Air quality is deteriorating. Limit outdoor exertion."
-      />
+      {tip && <RioCard message={tip} subtitle="Rio's advice for current conditions" />}
 
       <View style={styles.card}>
         <View style={styles.cardHeader}>
           <Text style={styles.cardTitle}>Daily Checklist</Text>
           <View style={styles.badge}>
-            <Text style={styles.badgeText}>{completedCount}/3 Completed</Text>
+            <Text style={styles.badgeText}>{completedCount}/{checklist.length} Completed</Text>
           </View>
         </View>
-        {CHECKLIST_ITEMS.map((item) => (
+        {checklist.map((item) => (
           <TouchableOpacity
             key={item.id}
             style={styles.checkItem}
@@ -61,9 +109,11 @@ export default function HabitsScreen() {
             <Ionicons name="bus" size={16} color={Colors.onSecondaryContainer} />
             <Text style={styles.tagTextSecondary}>Commuter</Text>
           </View>
-          <View style={styles.tagTertiary}>
-            <Ionicons name="heart" size={16} color={Colors.onTertiaryContainer} />
-            <Text style={styles.tagTextTertiary}>Mild Asthma</Text>
+          <View style={[styles.tagTertiary, aqi > 100 && styles.tagWarning]}>
+            <Ionicons name="shield-checkmark" size={16} color={aqi > 100 ? '#f44336' : Colors.onTertiaryContainer} />
+            <Text style={[styles.tagTextTertiary, aqi > 100 && { color: '#f44336' }]}>
+              AQI {aqi > 100 ? 'Alert' : 'Normal'}
+            </Text>
           </View>
         </View>
       </View>
@@ -96,6 +146,7 @@ export default function HabitsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
+  center: { justifyContent: 'center', alignItems: 'center' },
   content: { padding: Spacing.containerPadding, paddingBottom: 100, gap: Spacing.cardGap },
   title: {
     fontFamily: FontFamily.publicSans,
@@ -200,6 +251,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
+  },
+  tagWarning: {
+    backgroundColor: '#f4433622',
   },
   tagTextTertiary: {
     fontFamily: FontFamily.inter,

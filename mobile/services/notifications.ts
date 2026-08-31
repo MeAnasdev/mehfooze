@@ -20,12 +20,12 @@ Notifications.setNotificationHandler({
 export async function registerForPushNotifications(): Promise<string | null> {
   if (!Device.isDevice) return null
 
-  const { status: existingStatus } = await Notifications.getPermissionsAsync()
-  let finalStatus = existingStatus
+  const existingPerm: any = await Notifications.getPermissionsAsync()
+  let finalStatus: string = existingPerm.status ?? 'undetermined'
 
-  if (existingStatus !== 'granted') {
-    const { status } = await Notifications.requestPermissionsAsync()
-    finalStatus = status
+  if (finalStatus !== 'granted') {
+    const newPerm: any = await Notifications.requestPermissionsAsync()
+    finalStatus = newPerm.status ?? 'undetermined'
   }
 
   if (finalStatus !== 'granted') return null

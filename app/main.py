@@ -30,6 +30,7 @@ from app.models import zone as zone_model
 from app.models import reading as reading_model
 from app.models import notification as notification_model
 from app.models import hazard as hazard_model
+from app.models import content as content_model
 
 logging.basicConfig(level=settings.log_level.upper())
 logger = logging.getLogger(__name__)
@@ -45,12 +46,15 @@ async def lifespan(app: FastAPI):
     # Seed zones into the DB
     from app.database import SessionLocal
     from app.services.ingest import ensure_zones_seeded
-    db = SessionLocal()
     try:
-        ensure_zones_seeded(db)
-        logger.info("Zone seed complete.")
-    finally:
-        db.close()
+        db = SessionLocal()
+        try:
+            ensure_zones_seeded(db)
+            logger.info("Zone seed complete.")
+        finally:
+            db.close()
+    except Exception as e:
+        logger.error("Zone seeding failed: %s", e)
 
     yield  # app runs here
 

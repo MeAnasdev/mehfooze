@@ -9,17 +9,17 @@ import MapScreen from '../screens/MapScreen';
 import HabitsScreen from '../screens/HabitsScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 
-const Tab = createBottomTabNavigator();
-
-const TAB_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
-  Home: 'home',
-  Exposure: 'bar-chart',
-  Map: 'map',
-  Habits: 'checkbox',
-  Profile: 'person',
+type RootTabParamList = {
+  Home: undefined;
+  Exposure: undefined;
+  Map: undefined;
+  Habits: undefined;
+  Profile: undefined;
 };
 
-const TAB_ICONS_FILLED: Record<string, keyof typeof Ionicons.glyphMap> = {
+const Tab = createBottomTabNavigator<RootTabParamList>();
+
+const TAB_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   Home: 'home',
   Exposure: 'bar-chart',
   Map: 'map',
@@ -32,8 +32,8 @@ export default function BottomNav() {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarIcon: ({ focused, color, size }) => {
-          const iconName = focused ? TAB_ICONS_FILLED[route.name] : TAB_ICONS[route.name];
+        tabBarIcon: ({ focused, color }) => {
+          const iconName = focused ? TAB_ICONS[route.name] : TAB_ICONS[route.name];
           return <Ionicons name={iconName} size={24} color={color} />;
         },
         tabBarLabel: ({ focused }) => (

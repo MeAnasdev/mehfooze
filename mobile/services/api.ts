@@ -8,16 +8,25 @@ async function apiFetch<T>(path: string): Promise<T> {
   return res.json();
 }
 
-export async function fetchCurrentAqi(lat: number, lng: number): Promise<AqiReading> {
-  return apiFetch<AqiReading>(`/current?lat=${lat}&lng=${lng}`);
+export async function fetchCurrentAqi(): Promise<{ zones: AqiReading[] }> {
+  return apiFetch<{ zones: AqiReading[] }>('/current');
 }
 
-export async function fetchForecast(lat: number, lng: number): Promise<ForecastPoint[]> {
-  return apiFetch<ForecastPoint[]>(`/forecast?lat=${lat}&lng=${lng}`);
+export async function fetchLahoreAqi(): Promise<AqiReading[]> {
+  const res = await apiFetch<{ zones: AqiReading[] }>('/current');
+  return res.zones ?? [];
+}
+
+export async function fetchForecast(zoneId: string): Promise<ForecastPoint[]> {
+  return apiFetch<ForecastPoint[]>(`/forecast/${zoneId}`);
 }
 
 export async function fetchAdvisory(profile: string): Promise<Advisory> {
   return apiFetch<Advisory>(`/advisory/${profile}`);
+}
+
+export async function fetchExposure(zoneId: string): Promise<{ hours: { hour: number; aqi: number; pm25: number; pm10: number; o3: number; no2: number }[] }> {
+  return apiFetch(`/exposure/${zoneId}`);
 }
 
 export async function fetchRankings(): Promise<CityRanking[]> {
@@ -35,6 +44,6 @@ export async function fetchRoute(
   );
 }
 
-export async function fetchLahoreAqi(): Promise<AqiReading[]> {
-  return apiFetch<AqiReading[]>('/lahore-aqi');
+export async function fetchTip(profile: string, aqi: number): Promise<{ tip: string; period: string; aqiTier: string }> {
+  return apiFetch(`/tips?profile=${profile}&aqi=${aqi}`);
 }

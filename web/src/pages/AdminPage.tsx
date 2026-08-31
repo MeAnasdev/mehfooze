@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { API_BASE } from '../services/api'
 
 interface SystemStats {
   totalZones: number
@@ -37,9 +38,9 @@ export default function AdminPage() {
   useEffect(() => {
     setLoading(true)
     Promise.allSettled([
-      fetch('/api/admin/stats').then((r) => r.json()),
-      fetch('/api/admin/health').then((r) => r.json()),
-      fetch('/api/admin/content').then((r) => r.json()),
+      fetch(`${API_BASE}/api/admin/stats`).then((r) => r.json()),
+      fetch(`${API_BASE}/api/admin/health`).then((r) => r.json()),
+      fetch(`${API_BASE}/api/admin/content`).then((r) => r.json()),
     ]).then(([statsRes, healthRes, contentRes]) => {
       if (statsRes.status === 'fulfilled') setStats(statsRes.value)
       if (healthRes.status === 'fulfilled') setHealth(healthRes.value)

@@ -7,7 +7,9 @@ services:
     startCommand: cd app && uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: DATABASE_URL
-        value: sqlite:///./mehfooze_dev.db
+        fromDatabase:
+          name: mehfooze-db
+          property: databaseUrl
       - key: AQICN_TOKEN
         value: ""
       - key: APP_ENV
@@ -15,3 +17,8 @@ services:
       - key: LOG_LEVEL
         value: info
     healthCheckPath: /health
+
+  - type: pserv
+    name: mehfooze-db
+    plan: free
+    databaseName: mehfooze

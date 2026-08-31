@@ -5,6 +5,7 @@
 
 import { getToken, onMessage } from 'firebase/messaging'
 import { messaging } from './firebase'
+import { API_BASE } from './api'
 
 export async function requestNotificationPermission(): Promise<string | null> {
   if (!messaging) return null
@@ -17,9 +18,8 @@ export async function requestNotificationPermission(): Promise<string | null> {
       vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY,
     })
 
-    // Register token with backend
     if (token) {
-      await fetch('/api/notifications/register', {
+      await fetch(`${API_BASE}/api/notifications/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -56,7 +56,7 @@ export async function checkAlerts(): Promise<
   { id: string; zone: string; severity: string; aqi: number; message: string; createdAt: string }[]
 > {
   try {
-    const res = await fetch('/api/notifications/alerts')
+    const res = await fetch(`${API_BASE}/api/notifications/alerts`)
     if (!res.ok) return []
     const data = await res.json()
     return data.alerts ?? []

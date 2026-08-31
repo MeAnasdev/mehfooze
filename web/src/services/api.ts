@@ -6,7 +6,7 @@ const OPEN_METEO_AQI = 'https://air-quality-api.open-meteo.com/v1'
 const NOMINATIM_BASE = 'https://nominatim.openstreetmap.org'
 
 // Backend API base URL — empty string means use Vite proxy (dev), full URL for production
-const API_BASE = import.meta.env.VITE_API_URL || ''
+export const API_BASE = import.meta.env.VITE_API_URL || ''
 
 export interface AqiReading {
   aqi: number

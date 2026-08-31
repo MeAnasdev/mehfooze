@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
+import { API_BASE } from '../services/api'
 
 interface HourData {
   hour: number
@@ -49,7 +50,7 @@ export default function ExposurePage() {
   const [data, setData] = useState<HourData[]>([])
 
   useEffect(() => {
-    fetch('/api/exposure/gulberg')
+    fetch(`${API_BASE}/api/exposure/gulberg`)
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((res) => {
         const mapped: HourData[] = (res.hours ?? []).map((h: { hour: number; aqi: number; pm25?: number; pm10?: number; o3?: number; no2?: number }) => ({

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { API_BASE } from '../services/api'
 
 interface Poi {
   name: string
@@ -21,7 +22,7 @@ export default function PoisList({ lat, lng, onPoiClick }: PoisListProps) {
 
   useEffect(() => {
     setLoading(true)
-    fetch(`/api/pois?lat=${lat}&lng=${lng}&type=${filter}&radius=3000`)
+    fetch(`${API_BASE}/api/pois?lat=${lat}&lng=${lng}&type=${filter}&radius=3000`)
       .then((r) => r.json())
       .then(setPois)
       .catch(() => setPois([]))

@@ -1,45 +1,98 @@
-import React from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
 import { Colors, FontFamily, FontSize, Spacing } from '../constants/theme';
 import AqiDial from '../components/AqiDial';
 import WeatherCard from '../components/WeatherCard';
 import RioCard from '../components/RioCard';
+import { fetchLahoreAqi, fetchTip } from '../services/api';
+import { AqiReading } from '../types';
 
-const FORECAST_DATA = [
-  { hour: '12 PM', aqi: 120 },
-  { hour: '3 PM', aqi: 135 },
-  { hour: '6 PM', aqi: 110 },
-  { hour: '9 PM', aqi: 95 },
-  { hour: '12 AM', aqi: 80 },
-  { hour: '3 AM', aqi: 70 },
-  { hour: '6 AM', aqi: 65 },
-  { hour: '9 AM', aqi: 85 },
-];
+function aqiColor(aqi: number): string {
+  if (aqi <= 50) return '#4caf50';
+  if (aqi <= 100) return '#ff9800';
+  if (aqi <= 150) return '#f44336';
+  if (aqi <= 200) return '#9c27b0';
+  return '#7e0023';
+}
+
+function aqiLabel(aqi: number): string {
+  if (aqi <= 50) return 'Good';
+  if (aqi <= 100) return 'Moderate';
+  if (aqi <= 150) return 'Unhealthy for Sensitive';
+  if (aqi <= 200) return 'Unhealthy';
+  return 'Very Unhealthy';
+}
+
+function getGreeting(): string {
+  const h = new Date().getHours();
+  if (h < 12) return 'Good morning';
+  if (h < 17) return 'Good afternoon';
+  return 'Good evening';
+}
 
 export default function HomeScreen() {
+  const [zones, setZones] = useState<AqiReading[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [tip, setTip] = useState<string>('');
+
+  useEffect(() => {
+    fetchLahoreAqi()
+      .then((data) => {
+        setZones(data);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+
+    fetchTip('citizen', 100)
+      .then((res) => setTip(res.tip))
+      .catch(() => {});
+  }, []);
+
+  const primary = zones[0];
+  const maxZone = zones.reduce((max, z) => (z.aqi > max.aqi ? z : max), zones[0] ?? { aqi: 0, pm25: 0, pm10: 0 });
+
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.center]}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+        <Text style={styles.loadingText}>Loading air quality data...</Text>
+      </View>
+    );
+  }
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.greeting}>Good afternoon, User</Text>
+      <Text style={styles.greeting}>{getGreeting()}, User</Text>
       <Text style={styles.subtitle}>Let's check the air quality today</Text>
 
-      <WeatherCard temperature={38} humidity={45} windSpeed={12} />
+      {primary && (
+        <WeatherCard
+          temperature={primary.temperature ?? 0}
+          humidity={primary.humidity ?? 0}
+          windSpeed={primary.wind_speed ?? 0}
+        />
+      )}
 
       <View style={styles.dialSection}>
-        <AqiDial aqi={120} size={180} />
+        <AqiDial aqi={primary?.aqi ?? 0} size={180} />
+        {primary && (
+          <Text style={[styles.aqiLabel, { color: aqiColor(primary.aqi) }]}>
+            {aqiLabel(primary.aqi)}
+          </Text>
+        )}
       </View>
 
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>7-Day Forecast</Text>
-          <Text style={styles.sectionLink}>Details</Text>
+          <Text style={styles.sectionTitle}>Zone Overview</Text>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.forecastScroll}>
-          {FORECAST_DATA.map((item, i) => (
+          {zones.map((z, i) => (
             <View key={i} style={styles.forecastItem}>
-              <Text style={styles.forecastHour}>{item.hour}</Text>
-              <View style={[styles.forecastBar, { height: Math.max(item.aqi / 3, 20) }]} />
-              <Text style={[styles.forecastAqi, item.aqi > 100 && { color: '#f44336' }]}>
-                {item.aqi}
+              <Text style={styles.forecastHour}>{z.station?.split(' ')[0] ?? `Zone ${i + 1}`}</Text>
+              <View style={[styles.forecastBar, { height: Math.max(z.aqi / 3, 20), backgroundColor: aqiColor(z.aqi) }]} />
+              <Text style={[styles.forecastAqi, { color: aqiColor(z.aqi) }]}>
+                {z.aqi}
               </Text>
             </View>
           ))}
@@ -51,37 +104,41 @@ export default function HomeScreen() {
         <View style={styles.snapshotGrid}>
           <View style={styles.snapshotCard}>
             <Text style={styles.snapshotLabel}>AQI Now</Text>
-            <Text style={[styles.snapshotValue, { color: '#f44336' }]}>120</Text>
-            <Text style={styles.snapshotSub}>Unhealthy</Text>
+            <Text style={[styles.snapshotValue, { color: aqiColor(maxZone.aqi) }]}>{maxZone.aqi}</Text>
+            <Text style={styles.snapshotSub}>{aqiLabel(maxZone.aqi)}</Text>
           </View>
           <View style={styles.snapshotCard}>
             <Text style={styles.snapshotLabel}>PM2.5</Text>
-            <Text style={styles.snapshotValue}>43.2</Text>
+            <Text style={styles.snapshotValue}>{maxZone.pm25?.toFixed(1) ?? '--'}</Text>
             <Text style={styles.snapshotSub}>µg/m³</Text>
           </View>
           <View style={styles.snapshotCard}>
             <Text style={styles.snapshotLabel}>PM10</Text>
-            <Text style={styles.snapshotValue}>78.5</Text>
+            <Text style={styles.snapshotValue}>{maxZone.pm10?.toFixed(1) ?? '--'}</Text>
             <Text style={styles.snapshotSub}>µg/m³</Text>
           </View>
           <View style={styles.snapshotCard}>
-            <Text style={styles.snapshotLabel}>Risk Score</Text>
-            <Text style={[styles.snapshotValue, { color: '#ff9800' }]}>42%</Text>
-            <Text style={styles.snapshotSub}>Moderate</Text>
+            <Text style={styles.snapshotLabel}>Zones</Text>
+            <Text style={[styles.snapshotValue, { color: Colors.primary }]}>{zones.length}</Text>
+            <Text style={styles.snapshotSub}>Monitored</Text>
           </View>
         </View>
       </View>
 
-      <RioCard
-        message="Today is an indoor activity day."
-        subtitle="Air quality is deteriorating. Limit outdoor exertion."
-      />
+      {tip && (
+        <RioCard
+          message={tip}
+          subtitle="Rio's proactive tip for you"
+        />
+      )}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
+  center: { justifyContent: 'center', alignItems: 'center' },
+  loadingText: { marginTop: 12, fontFamily: FontFamily.inter, fontSize: FontSize.bodyMd, color: Colors.onSurfaceVariant },
   content: { padding: Spacing.containerPadding, paddingBottom: 100, gap: Spacing.cardGap },
   greeting: {
     fontFamily: FontFamily.publicSans,
@@ -97,6 +154,12 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   dialSection: { alignItems: 'center', paddingVertical: 16 },
+  aqiLabel: {
+    fontFamily: FontFamily.inter,
+    fontSize: FontSize.labelMd,
+    fontWeight: '600',
+    marginTop: 8,
+  },
   section: { marginTop: 8 },
   sectionHeader: {
     flexDirection: 'row',
@@ -109,12 +172,6 @@ const styles = StyleSheet.create({
     fontSize: FontSize.titleMd,
     fontWeight: '500',
     color: Colors.onSurface,
-  },
-  sectionLink: {
-    fontFamily: FontFamily.inter,
-    fontSize: FontSize.labelMd,
-    color: Colors.primary,
-    fontWeight: '500',
   },
   forecastScroll: { marginHorizontal: -Spacing.containerPadding, paddingHorizontal: Spacing.containerPadding },
   forecastItem: {
