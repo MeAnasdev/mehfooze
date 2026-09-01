@@ -55,7 +55,7 @@ export default function MyAirPage() {
   }, [current?.aqi, profile])
 
   const mapZones: Zone[] = current
-    ? [{ name: current.station, lat: current.lat, lng: current.lng, aqi: current.aqi }]
+    ? [{ name: current.name, lat: current.lat, lng: current.lng, aqi: current.aqi }]
     : []
 
   const now = new Date()
@@ -280,7 +280,7 @@ export default function MyAirPage() {
                   </button>
                 </div>
               </div>
-              <ForecastChart data={forecast} zone={current.station} />
+              <ForecastChart data={forecast} zone={current.name} />
             </div>
 
             {/* Exposure Snapshot */}

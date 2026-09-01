@@ -110,7 +110,7 @@ export default function ExposureScreen() {
           {zones.map((z, i) => (
             <View key={i} style={styles.zoneRow}>
               <View style={[styles.zoneDot, { backgroundColor: aqiColor(z.aqi) }]} />
-              <Text style={styles.zoneName}>{z.station ?? `Zone ${i + 1}`}</Text>
+              <Text style={styles.zoneName}>{z.name ?? `Zone ${i + 1}`}</Text>
               <Text style={[styles.zoneAqi, { color: aqiColor(z.aqi) }]}>{z.aqi}</Text>
             </View>
           ))}

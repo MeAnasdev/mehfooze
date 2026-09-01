@@ -89,7 +89,7 @@ export default function HomeScreen() {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.forecastScroll}>
           {zones.map((z, i) => (
             <View key={i} style={styles.forecastItem}>
-              <Text style={styles.forecastHour}>{z.station?.split(' ')[0] ?? `Zone ${i + 1}`}</Text>
+              <Text style={styles.forecastHour}>{z.name?.split(' ')[0] ?? `Zone ${i + 1}`}</Text>
               <View style={[styles.forecastBar, { height: Math.max(z.aqi / 3, 20), backgroundColor: aqiColor(z.aqi) }]} />
               <Text style={[styles.forecastAqi, { color: aqiColor(z.aqi) }]}>
                 {z.aqi}

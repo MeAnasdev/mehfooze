@@ -1,6 +1,6 @@
 export interface AqiReading {
-  zone_id: string;
-  station: string;
+  stationId: string;
+  name: string;
   aqi: number;
   pm25: number;
   pm10: number;
@@ -8,12 +8,13 @@ export interface AqiReading {
   no2: number;
   co: number;
   so2: number;
-  time: string;
+  updatedAt: string;
   lat: number;
   lng: number;
   temperature?: number;
   humidity?: number;
   wind_speed?: number;
+  source?: string;
 }
 
 export interface ForecastPoint {

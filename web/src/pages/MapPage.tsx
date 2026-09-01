@@ -99,7 +99,7 @@ export default function MapPage() {
       if (zonesResult.status === 'fulfilled') {
         zonesResult.value.forEach((z) => {
           allZones.push({
-            name: z.station,
+            name: z.name,
             lat: z.lat,
             lng: z.lng,
             aqi: z.aqi,
@@ -116,7 +116,7 @@ export default function MapPage() {
         const exists = allZones.some((z) => Math.abs(z.lat - u.lat) < 0.01 && Math.abs(z.lng - u.lng) < 0.01)
         if (!exists) {
           allZones.unshift({
-            name: u.station,
+            name: u.name,
             lat: u.lat,
             lng: u.lng,
             aqi: u.aqi,
@@ -154,7 +154,7 @@ export default function MapPage() {
     // Fetch AQI for the selected location
     fetchAqiByCoords(r.lat, r.lng).then((data) => {
       const newZone: ZoneData = {
-        name: data.station,
+        name: data.name,
         lat: data.lat,
         lng: data.lng,
         aqi: data.aqi,

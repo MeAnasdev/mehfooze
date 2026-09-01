@@ -16,13 +16,15 @@ export interface AqiReading {
   no2: number
   co: number
   so2: number
-  station: string
-  time: string
+  stationId: string
+  name: string
+  updatedAt: string
   lat: number
   lng: number
   temperature?: number
   humidity?: number
   wind_speed?: number
+  source?: string
 }
 
 export interface ForecastPoint {
@@ -101,8 +103,9 @@ export async function fetchAqiByCoords(lat: number, lng: number): Promise<AqiRea
     no2: data.data.iaqi?.no2?.v ?? 0,
     co: data.data.iaqi?.co?.v ?? 0,
     so2: data.data.iaqi?.so2?.v ?? 0,
-    station: data.data.city?.name ?? 'Your Location',
-    time: data.data.time?.iso ?? new Date().toISOString(),
+    stationId: data.data.city?.name?.toLowerCase().replace(/\s+/g, '-') ?? 'user-location',
+    name: data.data.city?.name ?? 'Your Location',
+    updatedAt: data.data.time?.iso ?? new Date().toISOString(),
     lat,
     lng,
     temperature: data.data.iaqi?.t?.v,
@@ -130,8 +133,13 @@ export async function fetchLahoreAqi(): Promise<AqiReading[]> {
         aqi: data.data.aqi,
         pm25: data.data.iaqi?.pm25?.v ?? 0,
         pm10: data.data.iaqi?.pm10?.v ?? 0,
-        station: data.data.city?.name ?? zone.name,
-        time: data.data.time?.iso ?? new Date().toISOString(),
+        o3: data.data.iaqi?.o3?.v ?? 0,
+        no2: data.data.iaqi?.no2?.v ?? 0,
+        co: data.data.iaqi?.co?.v ?? 0,
+        so2: data.data.iaqi?.so2?.v ?? 0,
+        stationId: zone.name.toLowerCase().replace(/\s+/g, '-'),
+        name: data.data.city?.name ?? zone.name,
+        updatedAt: data.data.time?.iso ?? new Date().toISOString(),
         lat: zone.lat,
         lng: zone.lng,
       }
