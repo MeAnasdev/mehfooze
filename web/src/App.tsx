@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
+import { AqiProvider } from './contexts/AqiContext'
 import ErrorBoundary from './components/ErrorBoundary'
 import Layout from './components/Layout'
 import SplashScreen from './components/SplashScreen'
@@ -35,7 +36,7 @@ function AppRoutes() {
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <LoginPage />} />
       <Route path="/download" element={<DownloadPage />} />
       <Route path="/apk" element={<ApkPage />} />
-      <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+      <Route path="/" element={<ProtectedRoute><AqiProvider><Layout /></AqiProvider></ProtectedRoute>}>
         <Route index element={<MyAirPage />} />
         <Route path="map" element={<MapPage />} />
         <Route path="exposure" element={<ExposurePage />} />

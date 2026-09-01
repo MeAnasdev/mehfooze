@@ -20,8 +20,8 @@ export default function DownloadBanner() {
   }
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 md:hidden">
-      <div className="bg-primary text-on-primary px-4 py-3 flex items-center gap-3 shadow-lg">
+    <div className="fixed bottom-13 left-0 right-0 z-50 md:hidden pb-safe">
+      <div className="bg-primary text-on-primary px-4 py-2.5 flex items-center gap-3 shadow-lg">
         <span className="material-symbols-outlined text-xl">phone_android</span>
         <button
           onClick={() => navigate('/download')}

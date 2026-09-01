@@ -15,21 +15,21 @@ interface AdvisoryPanelProps {
 
 export default function AdvisoryPanel({ advisory, profile, onProfileChange }: AdvisoryPanelProps) {
   return (
-    <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-6 shadow-ambient">
-      <h2 className="font-title-md text-title-md text-on-surface mb-4">Health Advisory</h2>
+    <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 sm:p-6 shadow-ambient">
+      <h2 className="text-sm sm:text-base font-semibold text-on-surface mb-3 sm:mb-4">Health Advisory</h2>
 
-      <div className="flex gap-2 mb-4 flex-wrap">
+      <div className="flex gap-1.5 sm:gap-2 mb-3 sm:mb-4 flex-wrap">
         {PROFILES.map((p) => (
           <button
             key={p.id}
             onClick={() => onProfileChange(p.id)}
-            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors flex items-center gap-1 ${
+            className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-medium transition-colors flex items-center gap-1 ${
               profile === p.id
                 ? 'bg-primary-container/20 text-primary border border-primary'
                 : 'bg-surface border border-outline-variant text-on-surface-variant hover:bg-surface-container-high'
             }`}
           >
-            <span className="material-symbols-outlined text-[16px]">{p.icon}</span>
+            <span className="material-symbols-outlined text-[14px] sm:text-[16px]">{p.icon}</span>
             {p.label}
           </button>
         ))}
@@ -43,12 +43,12 @@ export default function AdvisoryPanel({ advisory, profile, onProfileChange }: Ad
           >
             AQI {advisory.aqi} &middot; {advisory.aqiCategory}
           </span>
-          <p className="font-body-md text-body-md text-on-surface-variant leading-relaxed">{advisory.message}</p>
+          <p className="text-xs sm:text-sm text-on-surface-variant leading-relaxed">{advisory.message}</p>
           {advisory.actions.length > 0 && (
             <ul className="space-y-2">
               {advisory.actions.map((a, i) => (
-                <li key={i} className="text-sm text-on-surface-variant flex items-start gap-2">
-                  <span className="material-symbols-outlined text-primary text-[16px] mt-0.5">check_circle</span>
+                <li key={i} className="text-xs sm:text-sm text-on-surface-variant flex items-start gap-2">
+                  <span className="material-symbols-outlined text-primary text-[14px] sm:text-[16px] mt-0.5">check_circle</span>
                   {a}
                 </li>
               ))}
@@ -56,7 +56,7 @@ export default function AdvisoryPanel({ advisory, profile, onProfileChange }: Ad
           )}
         </div>
       ) : (
-        <p className="font-body-md text-body-md text-on-surface-variant">Loading advisory...</p>
+        <p className="text-xs sm:text-sm text-on-surface-variant">Loading advisory...</p>
       )}
     </div>
   )

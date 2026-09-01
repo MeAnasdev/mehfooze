@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 
 const profileTypes = [
@@ -7,6 +7,8 @@ const profileTypes = [
   { id: 'parent', label: 'Parent', icon: 'child_care' },
   { id: 'sensitive', label: 'Sensitive', icon: 'pulmonology' },
 ]
+
+const PROFILE_KEY = 'mehfooze_profile'
 
 export default function ProfilePage() {
   const { user, signOut } = useAuth()
@@ -20,10 +22,37 @@ export default function ProfilePage() {
   const [isSignUp, setIsSignUp] = useState(false)
   const { signIn, signUp, signInWithGoogle } = useAuth()
 
+  const [fullName, setFullName] = useState('')
   const [savedLocations, setSavedLocations] = useState([
     { name: 'Home', address: 'Lahore, Gulberg III', icon: 'home' },
     { name: 'Work', address: 'Lahore, Model Town', icon: 'work' },
   ])
+
+  useEffect(() => {
+    if (user) {
+      setFullName(user.displayName || '')
+    }
+  }, [user])
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(PROFILE_KEY)
+      if (saved) {
+        const data = JSON.parse(saved)
+        if (data.profile) setSelectedProfile(data.profile)
+        if (data.alertThreshold) setAlertThreshold(data.alertThreshold)
+        if (data.fullName) setFullName(data.fullName)
+      }
+    } catch {}
+  }, [])
+
+  const saveProfile = () => {
+    localStorage.setItem(PROFILE_KEY, JSON.stringify({
+      profile: selectedProfile,
+      alertThreshold,
+      fullName,
+    }))
+  }
 
   const handleAuth = async () => {
     try {
@@ -41,7 +70,6 @@ export default function ProfilePage() {
 
   return (
     <div className="space-y-3">
-      {/* Header */}
       <header className="mb-2">
         <h1 className="text-lg sm:text-xl text-on-surface mb-0.5 font-bold">
           Your Profile & Preferences
@@ -53,9 +81,7 @@ export default function ProfilePage() {
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-4">
-        {/* Left Column: Personal Data & Settings */}
         <div className="lg:col-span-7 flex flex-col gap-3 sm:gap-4">
-          {/* Auth Section */}
           {user ? (
             <section className="glass-card p-4 sm:p-6">
               <div className="flex items-center gap-3 sm:gap-4">
@@ -134,13 +160,12 @@ export default function ProfilePage() {
             </section>
           )}
 
-          {/* Personal Details Form */}
           <section className="glass-card p-4 sm:p-6">
             <h2 className="text-sm sm:text-base mb-4 sm:mb-6 flex items-center gap-2 font-semibold">
               <span className="material-symbols-outlined text-primary">badge</span>
               Personal Details
             </h2>
-            <form className="space-y-4 sm:space-y-5">
+            <form className="space-y-4 sm:space-y-5" onSubmit={(e) => { e.preventDefault(); saveProfile() }}>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
                   <label className="block text-[10px] sm:text-xs text-on-surface-variant mb-1 uppercase tracking-wider font-medium">
@@ -149,7 +174,9 @@ export default function ProfilePage() {
                   <input
                     className="w-full bg-surface border border-outline-variant rounded-lg px-3 sm:px-4 py-2 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:border-primary transition-shadow"
                     type="text"
-                    defaultValue="Umar"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    placeholder="Enter your name"
                   />
                 </div>
                 <div>
@@ -159,7 +186,9 @@ export default function ProfilePage() {
                   <input
                     className="w-full bg-surface border border-outline-variant rounded-lg px-3 sm:px-4 py-2 text-sm text-on-surface focus:ring-2 focus:ring-primary focus:border-primary transition-shadow"
                     type="email"
-                    defaultValue="umar@example.com"
+                    value={user?.email || ''}
+                    readOnly
+                    placeholder="Your email"
                   />
                 </div>
               </div>
@@ -190,7 +219,7 @@ export default function ProfilePage() {
               <div className="pt-3 sm:pt-4 flex justify-end">
                 <button
                   className="bg-primary text-on-primary px-5 sm:px-6 py-2 rounded-full font-medium hover:bg-primary-container transition-colors shadow-sm text-sm"
-                  type="button"
+                  type="submit"
                 >
                   Save Changes
                 </button>
@@ -198,14 +227,12 @@ export default function ProfilePage() {
             </form>
           </section>
 
-          {/* Notifications & Preferences */}
           <section className="glass-card p-4 sm:p-6">
             <h2 className="text-sm sm:text-base mb-4 sm:mb-6 flex items-center gap-2 font-semibold">
               <span className="material-symbols-outlined text-primary">tune</span>
               Preferences & Alerts
             </h2>
             <div className="space-y-4 sm:space-y-6">
-              {/* Alert Threshold */}
               <div>
                 <div className="flex justify-between items-center mb-1.5 sm:mb-2">
                   <label className="text-sm font-medium">AQI Alert Threshold</label>
@@ -231,7 +258,6 @@ export default function ProfilePage() {
                 </div>
               </div>
               <hr className="border-outline-variant" />
-              {/* Toggles */}
               <div className="space-y-3 sm:space-y-4">
                 <div className="flex items-center justify-between gap-4">
                   <div className="min-w-0">
@@ -254,7 +280,7 @@ export default function ProfilePage() {
                   <div className="min-w-0">
                     <div className="text-sm font-medium">Display Units</div>
                     <div className="text-xs sm:text-sm text-on-surface-variant">
-                      Toggle between AQI score and raw concentration (µg/m³).
+                      Toggle between AQI score and raw concentration.
                     </div>
                   </div>
                   <select
@@ -271,9 +297,7 @@ export default function ProfilePage() {
           </section>
         </div>
 
-        {/* Right Column: Locations & Data Privacy */}
         <div className="lg:col-span-5 flex flex-col gap-3 sm:gap-4">
-          {/* Saved Locations */}
           <section className="glass-card p-4 sm:p-6">
             <div className="flex justify-between items-center mb-4 sm:mb-6">
               <h2 className="text-sm sm:text-base flex items-center gap-2 font-semibold">
@@ -331,7 +355,6 @@ export default function ProfilePage() {
             </div>
           </section>
 
-          {/* Privacy & Data */}
           <section className="glass-card p-4 sm:p-6">
             <h2 className="text-sm sm:text-base mb-3 sm:mb-4 flex items-center gap-2 font-semibold">
               <span className="material-symbols-outlined text-primary">shield</span>
@@ -353,7 +376,6 @@ export default function ProfilePage() {
             </div>
           </section>
 
-          {/* Sign Out */}
           {user && (
             <button
               onClick={signOut}

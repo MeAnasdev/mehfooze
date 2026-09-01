@@ -149,3 +149,22 @@ a:hover {
 .pb-safe {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
+
+/* Mobile viewport fixes */
+@supports (height: 100dvh) {
+  .min-h-screen {
+    min-height: 100dvh;
+  }
+}
+
+/* Prevent text zoom on iOS */
+input, select, textarea, button {
+  font-size: 16px;
+}
+
+/* Smooth scroll for mobile */
+@supports (-webkit-touch-callout: none) {
+  .overflow-y-auto {
+    -webkit-overflow-scrolling: touch;
+  }
+}

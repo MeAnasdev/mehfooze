@@ -1,58 +1,11 @@
-import { useEffect, useState } from 'react'
 import AqiMap, { Zone } from '../components/AqiMap'
 import AdvisoryPanel from '../components/AdvisoryPanel'
 import ForecastChart from '../components/ForecastChart'
-import { useGeolocation } from '../hooks/useGeolocation'
-import {
-  fetchAqiByCoords,
-  fetchForecast,
-  fetchAdvisory,
-  fetchTip,
-  AqiReading,
-  ForecastPoint,
-  Advisory,
-  RioTip,
-} from '../services/api'
+import { useAqi } from '../contexts/AqiContext'
 import { aqiColour, aqiCategory, aqiAdvice } from '../utils/aqi'
 
 export default function MyAirPage() {
-  const { lat, lng, locationName, loading: geoLoading } = useGeolocation()
-  const [current, setCurrent] = useState<AqiReading | null>(null)
-  const [forecast, setForecast] = useState<ForecastPoint[]>([])
-  const [advisory, setAdvisory] = useState<Advisory | null>(null)
-  const [tip, setTip] = useState<RioTip | null>(null)
-  const [profile, setProfile] = useState('citizen')
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (geoLoading) return
-    setLoading(true)
-    setError(null)
-
-    fetchAqiByCoords(lat, lng)
-      .then((data) => {
-        setCurrent(data)
-        return fetchForecast(lat, lng)
-      })
-      .then((data) => setForecast(data))
-      .catch(() => setError('Could not load AQI data for your location'))
-      .finally(() => setLoading(false))
-  }, [lat, lng, geoLoading])
-
-  useEffect(() => {
-    if (!current) return
-    fetchForecast(current.lat, current.lng).then(setForecast)
-  }, [current?.lat, current?.lng])
-
-  useEffect(() => {
-    fetchAdvisory(profile).then(setAdvisory).catch(() => {})
-  }, [profile])
-
-  useEffect(() => {
-    if (!current) return
-    fetchTip(profile, current.aqi).then(setTip).catch(() => {})
-  }, [current?.aqi, profile])
+  const { current, forecast, advisory, tip, profile, loading, error, locationName, setProfile } = useAqi()
 
   const mapZones: Zone[] = current
     ? [{ name: current.name, lat: current.lat, lng: current.lng, aqi: current.aqi }]
@@ -62,12 +15,11 @@ export default function MyAirPage() {
 
   return (
     <div className="space-y-3">
-      {/* Header */}
       <div className="flex items-start justify-between mb-1">
         <div>
           <p className="text-[10px] text-tertiary uppercase tracking-wider mb-0.5 font-semibold">
             {now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}{' '}
-            &middot; {geoLoading ? '...' : locationName}
+            &middot; {locationName || 'Lahore'}
           </p>
           <h2 className="text-xl sm:text-2xl text-on-surface font-bold leading-tight">
             Your air, at a glance.
@@ -78,7 +30,7 @@ export default function MyAirPage() {
         </div>
       </div>
 
-      {(loading || geoLoading) && (
+      {loading && (
         <div className="flex items-center justify-center h-40">
           <div className="loading-spinner" />
         </div>
@@ -94,7 +46,6 @@ export default function MyAirPage() {
         </div>
       )}
 
-      {/* Hazard Banner */}
       {!loading && current && current.aqi > 150 && (
         <div className="p-3 bg-error/10 border border-error/30 rounded-xl text-xs flex items-start gap-2.5">
           <span className="material-symbols-outlined text-error text-base mt-0.5">warning</span>
@@ -115,7 +66,6 @@ export default function MyAirPage() {
         </div>
       )}
 
-      {/* Should I Go Outside? */}
       {!loading && current && (
         <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 shadow-ambient">
           <div className="flex items-center gap-3">
@@ -151,7 +101,6 @@ export default function MyAirPage() {
         </div>
       )}
 
-      {/* Rio Proactive Tip */}
       {!loading && tip && (
         <div className="bg-primary-container/10 border border-primary-container/30 rounded-xl p-3.5 flex items-start gap-3">
           <div className="w-8 h-8 rounded-full bg-primary-container/20 flex items-center justify-center shrink-0">
@@ -166,9 +115,7 @@ export default function MyAirPage() {
 
       {!loading && current && (
         <>
-          {/* Top Row: Weather + AQI Dial */}
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-3">
-            {/* Weather Card */}
             <div className="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden shadow-ambient flex flex-col sm:flex-row">
               <div className="flex-1 p-4 bg-primary-container/5 flex flex-col justify-center relative overflow-hidden">
                 <div className="absolute -right-2 -top-2 opacity-[0.07]">
@@ -220,7 +167,6 @@ export default function MyAirPage() {
               </div>
             </div>
 
-            {/* AQI Dial Card */}
             <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 shadow-ambient flex flex-col items-center justify-center relative">
               <div className="absolute top-3 right-3 flex items-center gap-1 text-primary">
                 <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse-marker" />
@@ -241,7 +187,7 @@ export default function MyAirPage() {
                 />
                 <div className="text-center z-10">
                   <div className="text-3xl lg:text-4xl text-on-surface leading-none font-bold">
-                    {current.aqi}
+                    {Math.round(current.aqi)}
                   </div>
                   <div className="text-[9px] text-on-surface-variant mt-0.5">Average AQI</div>
                 </div>
@@ -250,16 +196,11 @@ export default function MyAirPage() {
                 <span className="text-[9px] text-tertiary">
                   Updated {new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
                 </span>
-                <span className="text-[9px] text-primary font-semibold flex items-center gap-0.5">
-                  <span className="material-symbols-outlined text-[11px]">trending_up</span> 12% better
-                </span>
               </div>
             </div>
           </div>
 
-          {/* Second Row: Forecast + Exposure Snapshot */}
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-3">
-            {/* Forecast Chart */}
             <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 shadow-ambient">
               <div className="flex items-center justify-between mb-3">
                 <div>
@@ -268,22 +209,10 @@ export default function MyAirPage() {
                   </p>
                   <h3 className="text-xs text-on-surface font-semibold">Plan around the air</h3>
                 </div>
-                <div className="flex bg-surface-container-low rounded-full p-0.5 border border-outline-variant/30">
-                  <button className="px-2.5 py-1 rounded-full bg-surface-container-lowest shadow-sm text-[10px] font-medium text-on-surface">
-                    All areas
-                  </button>
-                  <button className="px-2.5 py-1 rounded-full text-[10px] text-on-surface-variant hover:text-primary transition-colors">
-                    Home
-                  </button>
-                  <button className="px-2.5 py-1 rounded-full text-[10px] text-on-surface-variant hover:text-primary transition-colors">
-                    Work
-                  </button>
-                </div>
               </div>
               <ForecastChart data={forecast} zone={current.name} />
             </div>
 
-            {/* Exposure Snapshot */}
             <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 shadow-ambient flex flex-col justify-between">
               <div>
                 <div className="flex justify-between items-start mb-2">
@@ -314,14 +243,12 @@ export default function MyAirPage() {
             </div>
           </div>
 
-          {/* Map Preview */}
           <AqiMap
             zones={mapZones}
             center={[current.lat, current.lng]}
             height="28vh"
           />
 
-          {/* Advisory */}
           <AdvisoryPanel advisory={advisory} profile={profile} onProfileChange={setProfile} />
         </>
       )}
