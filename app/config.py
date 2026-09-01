@@ -39,6 +39,8 @@ class Settings(BaseSettings):
     def allowed_origins(self) -> List[str]:
         if self.app_env == "production":
             return [
+                "https://web-95jq38tja-aperion4.vercel.app",
+                "https://web-brown-kappa-643kj0w95b.vercel.app",
                 "https://mehfooze.vercel.app",
                 "https://web-henna-nine-64.vercel.app",
                 "https://mehfooze.app",
