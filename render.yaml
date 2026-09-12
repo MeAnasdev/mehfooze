@@ -13,7 +13,11 @@ services:
           name: mehfooze-db
           property: connectionString
       - key: AQICN_TOKEN
-        value: ""
+        # Optional — adds live AQICN station cross-check.
+        # Set this secret in the Render dashboard (Environment tab).
+        # Leave unset to use Open-Meteo CAMS as sole source (still 100% real data).
+        # Free token: https://aqicn.org/data-platform/token/
+        sync: false
       - key: APP_ENV
         value: production
       - key: LOG_LEVEL

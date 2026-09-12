@@ -5,49 +5,49 @@
 
 ---
 
-## Phase 0 — Hackathon Sprint (Aug 25–28)
+## Phase 0 — Hackathon Sprint (Aug 25–28) ✅ Completed
 
 ### Day 1 · Aug 25 — Data Foundation
 
-- [ ] Register AQICN token; verify live AQI pull for 3 Lahore stations
-- [ ] Register OpenAQ API key as backup data source
-- [ ] Pull historical weather from Open-Meteo (wind, humidity, temp, 90-day window)
-- [ ] Set up PostgreSQL; run Alembic initial migration (zones + aqi_readings tables)
-- [ ] Implement `services/ingest.py` — AQICN fetch + DB write + cached fallback
-- [ ] Scaffold FastAPI app (`main.py`, `config.py`, `database.py`)
-- [ ] Scaffold React + Vite frontend with basic routing (Home / Travel / Schools)
+- [x] Register AQICN token; verify live AQI pull for 3 Lahore stations
+- [x] Register OpenAQ API key as backup data source
+- [x] Pull historical weather from Open-Meteo (wind, humidity, temp, 90-day window)
+- [x] Set up PostgreSQL; run Alembic initial migration (zones + aqi_readings tables)
+- [x] Implement `services/ingest.py` — AQICN fetch + DB write + cached fallback
+- [x] Scaffold FastAPI app (`main.py`, `config.py`, `database.py`)
+- [x] Scaffold React + Vite frontend with basic routing (Home / Travel / Schools)
 
 ### Day 2 · Aug 26 — Forecast Engine + API
 
-- [ ] Train Prophet baseline on 90-day historical data for Gulberg station
-- [ ] Implement `services/forecaster.py` — Prophet + physical-baseline fallback
-- [ ] Implement `GET /api/current` — live AQI endpoint
-- [ ] Implement `GET /api/forecast/{zone}` — 24h forecast (72h stretch)
-- [ ] Implement `GET /api/advisory/{profile}` — rule-based advisory matrix
-- [ ] Add population-weighted zone prioritisation pass (WorldPop data if available)
+- [x] Train Prophet baseline on 90-day historical data for Gulberg station
+- [x] Implement `services/forecaster.py` — Prophet + physical-baseline fallback
+- [x] Implement `GET /api/current` — live AQI endpoint
+- [x] Implement `GET /api/forecast/{zone}` — 24h forecast (72h stretch)
+- [x] Implement `GET /api/advisory/{profile}` — rule-based advisory matrix
+- [x] Add population-weighted zone prioritisation pass (WorldPop data if available)
 
 ### Day 3 · Aug 27 — Dashboard + Travel Mode, End-to-End
 
-- [ ] Build `AqiMap.tsx` — Leaflet map with colour-coded zone markers
-- [ ] Build `ForecastChart.tsx` — Recharts 24–72h line chart with EPA threshold lines
-- [ ] Build `AdvisoryPanel.tsx` — profile tabs + advisory message display
-- [ ] Build `HomePage.tsx` — wire map + chart + advisory together
-- [ ] Implement `services/routing.py` — Google Directions/OSRM + segment enrichment
-- [ ] Implement `POST /api/route` — route overlay endpoint
-- [ ] Build `TravelPage.tsx` — route form + segment colour strip + flood flags + checklist
-- [ ] Build `SchoolsPage.tsx` — Go / No-Go signal derived from advisory endpoint
-- [ ] Wire full end-to-end loop with live data (ingest → forecast → advisory → UI)
-- [ ] Add ARIA labels and keyboard navigation to profile toggle and map markers
+- [x] Build `AqiMap.tsx` — Leaflet map with colour-coded zone markers
+- [x] Build `ForecastChart.tsx` — Recharts 24–72h line chart with EPA threshold lines
+- [x] Build `AdvisoryPanel.tsx` — profile tabs + advisory message display
+- [x] Build `HomePage.tsx` — wire map + chart + advisory together
+- [x] Implement `services/routing.py` — Google Directions/OSRM + segment enrichment
+- [x] Implement `POST /api/route` — route overlay endpoint
+- [x] Build `TravelPage.tsx` — route form + segment colour strip + flood flags + checklist
+- [x] Build `SchoolsPage.tsx` — Go / No-Go signal derived from advisory endpoint
+- [x] Wire full end-to-end loop with live data (ingest → forecast → advisory → UI)
+- [x] Add ARIA labels and keyboard navigation to profile toggle and map markers
 
 ### Day 4 · Aug 28 — Demo Day
 
-- [ ] Deploy frontend to Vercel; deploy backend to Render
-- [ ] Verify live URL is publicly accessible
-- [ ] Test cached-data fallback by disabling AQICN token temporarily
-- [ ] Polish pitch: problem → solution → live demo flow
-- [ ] Record 2–4 minute demo video (deployed app + walkthrough of requirements.md + tasks.md in Kiro)
-- [ ] Write 300–500 word project description
-- [ ] Submit via official submission portal before deadline
+- [x] Deploy frontend to Vercel; deploy backend to Render
+- [x] Verify live URL is publicly accessible
+- [x] Test cached-data fallback by disabling AQICN token temporarily
+- [x] Polish pitch: problem → solution → live demo flow
+- [x] Record 2–4 minute demo video (deployed app + walkthrough of requirements.md + tasks.md in Kiro)
+- [x] Write 300–500 word project description
+- [x] Submit via official submission portal before deadline
 
 ---
 
