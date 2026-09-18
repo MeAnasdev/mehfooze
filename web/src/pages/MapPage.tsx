@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { MapContainer, TileLayer, Marker, CircleMarker, Popup, useMap } from 'react-leaflet'
 import { useGeolocation } from '../hooks/useGeolocation'
-import { fetchAqiByCoords, geocode, fetchLahoreAqi } from '../services/api'
+import { fetchAqiByCoords, geocode, fetchCurrentFromBackend } from '../services/api'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
@@ -92,7 +92,7 @@ export default function MapPage() {
     // Fetch user location + all Lahore zones
     Promise.allSettled([
       fetchAqiByCoords(lat, lng),
-      fetchLahoreAqi(),
+      fetchCurrentFromBackend(),
     ]).then(([userResult, zonesResult]) => {
       const allZones: ZoneData[] = []
 
