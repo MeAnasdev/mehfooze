@@ -271,6 +271,14 @@ def fetch_live_aqi(db: Session) -> list[dict]:
                 results.append(cached)
 
     db.commit()
+
+    # After persisting fresh readings, check for hazard thresholds and dispatch alerts
+    try:
+        from app.services.hazard import check_and_create_alerts
+        check_and_create_alerts(db)
+    except Exception as exc:
+        logger.warning("Hazard check after ingestion failed: %s", exc)
+
     return results
 
 

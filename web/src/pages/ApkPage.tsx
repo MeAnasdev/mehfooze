@@ -1,6 +1,6 @@
 import { QRCodeSVG } from 'qrcode.react'
 
-const APK_DOWNLOAD_URL = 'https://expo.dev/accounts/meanas-dev/projects/megreateranas/builds' // Replace with actual APK URL after EAS build completes
+const APK_DOWNLOAD_URL = '/mehfooze.apk'
 
 export default function ApkPage() {
   return (

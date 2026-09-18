@@ -1,8 +1,5 @@
 import { MapContainer, TileLayer, CircleMarker, Popup } from 'react-leaflet'
 
-const GEOAPIFY_KEY = import.meta.env.VITE_GEOAPIFY_KEY
-const AQICN_TOKEN = import.meta.env.VITE_AQICN_TOKEN
-
 export interface Zone {
   name: string
   lat: number
@@ -49,13 +46,13 @@ export default function AqiMap({
         key={`${center[0]}-${center[1]}`}
       >
         <TileLayer
-          attribution='&copy; <a href="https://www.geoapify.com/">Geoapify</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          url={`https://maps.geoapify.com/v1/tile/carto/{z}/{x}/{y}.png?apiKey=${GEOAPIFY_KEY}`}
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
-        {showOverlay && AQICN_TOKEN && (
+        {showOverlay && (
           <TileLayer
-            url={`https://tiles.aqicn.org/tiles/usepa-aqi/{z}/{x}/{y}.png?token=${AQICN_TOKEN}`}
+            url="https://tiles.aqicn.org/tiles/usepa-aqi/{z}/{x}/{y}.png?token=__TOKEN_PLACEHOLDER__"
             opacity={0.4}
           />
         )}

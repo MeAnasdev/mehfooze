@@ -1,8 +1,24 @@
 import { useState, useEffect } from 'react'
 import { useAqi } from '../contexts/AqiContext'
 import { aqiColour, aqiCategory } from '../utils/aqi'
+import { API_BASE } from '../services/api'
 
 const CHECKLIST_KEY = 'mehfooze_checklist'
+
+interface KbArticle {
+  id: string
+  title: string
+  category: string
+  body: string
+  active: boolean
+}
+
+// Fallback articles shown when /api/admin/content is unreachable
+const DEFAULT_KB_ARTICLES: KbArticle[] = [
+  { id: '1', title: 'Understanding PM2.5 and Your Lungs', category: 'air_quality', body: 'PM2.5 refers to fine particles smaller than 2.5 micrometers that can penetrate deep into the lungs and bloodstream, causing respiratory and cardiovascular health effects.', active: true },
+  { id: '2', title: 'How to Wear an N95 Mask Correctly', category: 'health_tips', body: 'Ensure a tight seal around your nose and mouth. Conduct a seal check before each use. Replace when damp or after 8 hours of use in polluted environments.', active: true },
+  { id: '3', title: 'Air Purifier Selection Guide', category: 'health_tips', body: 'Choose a HEPA-filter purifier sized for your room (CADR rating). Place it in the room where you spend the most time. Replace filters every 6–12 months.', active: true },
+]
 
 const tabs = ['Daily Commute', 'Outdoor Exercise', 'Home & Sleep'] as const
 
@@ -53,8 +69,8 @@ function getChecklists(aqi: number, profile: string) {
       {
         id: 'e3',
         title: 'Wear a Mask During Warm-up',
-        description: profile === 'sensitive'
-          ? 'As a sensitive individual, always mask up during outdoor warm-ups.'
+        description: profile === 'patient'
+          ? 'As a respiratory patient, always mask up during outdoor warm-ups.'
           : 'Optional but recommended during warm-up near traffic.',
         icon: 'masks',
       },
@@ -79,7 +95,9 @@ function getChecklists(aqi: number, profile: string) {
         title: 'Monitor Indoor Air Quality',
         description: profile === 'parent'
           ? 'Children are more vulnerable. Ensure their room air purifier is running.'
-          : 'Good indoor air quality helps you recover from daily exposure.',
+          : profile === 'patient'
+            ? 'As a respiratory patient, indoor air quality directly affects your symptoms. Keep purifier running.'
+            : 'Good indoor air quality helps you recover from daily exposure.',
         icon: 'monitor_heart',
       },
     ],
@@ -112,6 +130,18 @@ export default function SafeHabitsPage() {
   const [activeTab, setActiveTab] = useState<typeof tabs[number]>('Daily Commute')
   const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({})
   const [history, setHistory] = useState<Record<string, string[]>>({})
+  const [kbArticles, setKbArticles] = useState<KbArticle[]>([])
+
+  // Fetch knowledge base articles from admin content endpoint
+  useEffect(() => {
+    fetch(`${API_BASE}/api/admin/content`)
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((items: KbArticle[]) => {
+        const active = items.filter((a) => a.active)
+        setKbArticles(active.length > 0 ? active : DEFAULT_KB_ARTICLES)
+      })
+      .catch(() => setKbArticles(DEFAULT_KB_ARTICLES))
+  }, [])
 
   const aqi = current?.aqi ?? 120
   const checklists = getChecklists(aqi, profile)
@@ -174,7 +204,12 @@ export default function SafeHabitsPage() {
       <div className="mb-2 flex flex-col sm:flex-row sm:justify-between sm:items-end gap-1">
         <div>
           <div className="text-[9px] sm:text-[10px] text-outline uppercase tracking-wider mb-0.5 font-semibold">
-            Personalized For You &bull; {profile === 'sensitive' ? 'Sensitive' : profile === 'parent' ? 'Parent' : 'Commuter'} Profile
+            Personalized For You &bull; {
+              profile === 'patient' ? 'Patient' :
+              profile === 'parent' ? 'Parent' :
+              profile === 'commuter' ? 'Commuter' :
+              profile === 'student' ? 'Student' : 'Citizen'
+            } Profile
           </div>
           <h2 className="text-lg sm:text-xl text-on-surface font-bold">
             Safe Habits & Advisory
@@ -223,7 +258,12 @@ export default function SafeHabitsPage() {
                 <strong style={{ color: aqiColour(aqi) }}>
                   {aqiCategory(aqi)} (AQI {Math.round(aqi)})
                 </strong>{' '}
-                in your area. As a {profile === 'sensitive' ? 'sensitive individual' : profile === 'parent' ? 'parent' : 'daily commuter'}, you should{' '}
+                in your area. As a {
+                  profile === 'patient' ? 'respiratory patient' :
+                  profile === 'parent' ? 'parent' :
+                  profile === 'commuter' ? 'daily commuter' :
+                  profile === 'student' ? 'student' : 'citizen'
+                }, you should{' '}
                 {aqi <= 50
                   ? 'enjoy the fresh air!'
                   : aqi <= 100
@@ -328,8 +368,17 @@ export default function SafeHabitsPage() {
             </div>
             <div className="flex flex-wrap gap-1.5 sm:gap-2 mb-3 sm:mb-4">
               <span className="px-2 sm:px-3 py-1 bg-white border border-outline-variant rounded-full text-[10px] sm:text-xs text-on-surface-variant flex items-center gap-1">
-                <span className="material-symbols-outlined text-[12px]">directions_bus</span>{' '}
-                {profile === 'sensitive' ? 'Sensitive' : profile === 'parent' ? 'Parent' : 'Commuter'}
+                <span className="material-symbols-outlined text-[12px]">
+                  {profile === 'parent' ? 'child_care' :
+                   profile === 'patient' ? 'pulmonology' :
+                   profile === 'commuter' ? 'directions_car' :
+                   profile === 'student' ? 'school' : 'person'}
+                </span>{' '}
+                {profile === 'citizen' ? 'Citizen' :
+                 profile === 'parent' ? 'Parent' :
+                 profile === 'patient' ? 'Patient' :
+                 profile === 'commuter' ? 'Commuter' :
+                 profile === 'student' ? 'Student' : 'Citizen'}
               </span>
             </div>
             <p className="text-xs sm:text-sm text-on-surface-variant border-t border-outline-variant/30 pt-3 sm:pt-4">
@@ -372,39 +421,31 @@ export default function SafeHabitsPage() {
               <h4 className="text-sm sm:text-base text-on-surface font-semibold">Knowledge Base</h4>
             </div>
             <div className="flex flex-col gap-3 sm:gap-4">
-              <a className="group flex gap-3 sm:gap-4 items-center" href="#">
-                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg overflow-hidden shrink-0 bg-surface-container flex items-center justify-center">
-                  <span className="material-symbols-outlined text-primary text-2xl sm:text-3xl">article</span>
-                </div>
-                <div className="min-w-0">
-                  <h5 className="text-xs sm:text-sm text-on-surface group-hover:text-primary transition-colors line-clamp-2 font-medium">
-                    Understanding PM2.5 and Your Lungs
-                  </h5>
-                  <span className="text-[10px] sm:text-xs text-outline mt-0.5 sm:mt-1 block">3 min read</span>
-                </div>
-              </a>
-              <a className="group flex gap-3 sm:gap-4 items-center" href="#">
-                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg overflow-hidden shrink-0 bg-surface-container flex items-center justify-center">
-                  <span className="material-symbols-outlined text-primary text-2xl sm:text-3xl">article</span>
-                </div>
-                <div className="min-w-0">
-                  <h5 className="text-xs sm:text-sm text-on-surface group-hover:text-primary transition-colors line-clamp-2 font-medium">
-                    How to optimize your indoor air purifier
-                  </h5>
-                  <span className="text-[10px] sm:text-xs text-outline mt-0.5 sm:mt-1 block">5 min read</span>
-                </div>
-              </a>
-              <a className="group flex gap-3 sm:gap-4 items-center" href="#">
-                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg overflow-hidden shrink-0 bg-surface-container flex items-center justify-center">
-                  <span className="material-symbols-outlined text-primary text-2xl sm:text-3xl">play_circle</span>
-                </div>
-                <div className="min-w-0">
-                  <h5 className="text-xs sm:text-sm text-on-surface group-hover:text-primary transition-colors line-clamp-2 font-medium">
-                    Video: Proper N95 Mask Fitting
-                  </h5>
-                  <span className="text-[10px] sm:text-xs text-outline mt-0.5 sm:mt-1 block">1:45 Tutorial</span>
-                </div>
-              </a>
+              {kbArticles.slice(0, 3).map((article) => (
+                <button
+                  key={article.id}
+                  className="group flex gap-3 sm:gap-4 items-start text-left w-full"
+                  onClick={() => {
+                    // Open article body in a simple alert until article detail page exists
+                    alert(`${article.title}\n\n${article.body}`)
+                  }}
+                >
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg overflow-hidden shrink-0 bg-surface-container flex items-center justify-center">
+                    <span className="material-symbols-outlined text-primary text-2xl sm:text-3xl">article</span>
+                  </div>
+                  <div className="min-w-0">
+                    <h5 className="text-xs sm:text-sm text-on-surface group-hover:text-primary transition-colors line-clamp-2 font-medium">
+                      {article.title}
+                    </h5>
+                    <span className="text-[10px] sm:text-xs text-outline mt-0.5 sm:mt-1 block capitalize">
+                      {article.category.replace('_', ' ')}
+                    </span>
+                  </div>
+                </button>
+              ))}
+              {kbArticles.length === 0 && (
+                <p className="text-xs text-on-surface-variant">No articles available. Check back soon.</p>
+              )}
             </div>
           </div>
         </div>

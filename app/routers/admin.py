@@ -1,10 +1,12 @@
 """
 Admin endpoints — content management, data source health, and system stats.
+Requires Firebase Auth admin role verification.
 """
 
 import uuid
 from datetime import datetime, timezone, timedelta
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Security
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -12,11 +14,35 @@ from app.database import get_db
 from app.models.reading import AqiReading
 from app.models.zone import Zone
 from app.models.notification import FcmToken
-from app.models.hazard import HazardAlert
 from app.models.content import Content
 from app.services.ingest import LAHORE_ZONES
+from app.config import settings
 
 router = APIRouter(tags=["admin"])
+security = HTTPBearer()
+
+
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Security(security),
+) -> dict:
+    """Verify Firebase ID token and return user claims."""
+    import firebase_admin.auth as auth
+
+    token = credentials.credentials
+    try:
+        decoded_token = auth.verify_id_token(token)
+        return decoded_token
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Invalid auth token: {e}")
+
+
+def admin_required(
+    current_user: dict = Depends(get_current_user),
+) -> dict:
+    """Check if the verified user has the 'admin' custom claim."""
+    if current_user.get("admin") != True:
+        raise HTTPException(status_code=403, detail="Admin role required")
+    return current_user
 
 
 class SystemStats(BaseModel):
@@ -37,7 +63,7 @@ class DataHealth(BaseModel):
 
 
 @router.get("/admin/stats", response_model=SystemStats)
-def get_stats(db: Session = Depends(get_db)):
+def get_stats(current_user: dict = Depends(admin_required), db: Session = Depends(get_db)):
     total_zones = db.query(Zone).count()
     total_readings = db.query(AqiReading).count()
     latest = db.query(AqiReading).order_by(AqiReading.recorded_at.desc()).first()
@@ -61,7 +87,7 @@ def get_stats(db: Session = Depends(get_db)):
 
 
 @router.get("/admin/health", response_model=list[DataHealth])
-def get_data_health(db: Session = Depends(get_db)):
+def get_data_health(current_user: dict = Depends(admin_required), db: Session = Depends(get_db)):
     results = []
     for zone in LAHORE_ZONES:
         reading = (
@@ -109,14 +135,14 @@ def _seed_content(db: Session):
 
 
 @router.get("/admin/content", response_model=list[ContentItem])
-def list_content(db: Session = Depends(get_db)):
+def list_content(current_user: dict = Depends(admin_required), db: Session = Depends(get_db)):
     _seed_content(db)
     rows = db.query(Content).order_by(Content.created_at).all()
     return [ContentItem(id=r.id, title=r.title, category=r.category, body=r.body, active=r.active) for r in rows]
 
 
 @router.post("/admin/content", response_model=ContentItem)
-def create_content(item: ContentItem, db: Session = Depends(get_db)):
+def create_content(item: ContentItem, current_user: dict = Depends(admin_required), db: Session = Depends(get_db)):
     existing = db.query(Content).filter(Content.id == item.id).first()
     if existing:
         existing.title = item.title

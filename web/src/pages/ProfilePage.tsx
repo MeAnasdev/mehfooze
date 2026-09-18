@@ -2,17 +2,18 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 
 const profileTypes = [
-  { id: 'general', label: 'General', icon: 'person' },
+  { id: 'citizen', label: 'Citizen', icon: 'person' },
   { id: 'commuter', label: 'Commuter', icon: 'pedal_bike' },
   { id: 'parent', label: 'Parent', icon: 'child_care' },
-  { id: 'sensitive', label: 'Sensitive', icon: 'pulmonology' },
+  { id: 'patient', label: 'Patient', icon: 'pulmonology' },
+  { id: 'student', label: 'Student', icon: 'school' },
 ]
 
 const PROFILE_KEY = 'mehfooze_profile'
 
 export default function ProfilePage() {
   const { user, signOut } = useAuth()
-  const [selectedProfile, setSelectedProfile] = useState('commuter')
+  const [selectedProfile, setSelectedProfile] = useState('citizen')
   const [alertThreshold, setAlertThreshold] = useState(100)
   const [rioPopups, setRioPopups] = useState(true)
   const [displayUnits, setDisplayUnits] = useState('us-aqi')

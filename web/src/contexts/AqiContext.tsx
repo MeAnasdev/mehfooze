@@ -40,7 +40,27 @@ export function AqiProvider({ children }: { children: ReactNode }) {
   const [forecast, setForecast] = useState<ForecastPoint[]>([])
   const [advisory, setAdvisory] = useState<Advisory | null>(null)
   const [tip, setTip] = useState<RioTip | null>(null)
-  const [profile, setProfile] = useState('citizen')
+  const [profile, setProfileState] = useState(() => {
+    // Load saved profile from localStorage on init; fall back to 'citizen'
+    try {
+      const saved = localStorage.getItem('mehfooze_profile')
+      if (saved) {
+        const data = JSON.parse(saved)
+        const valid = ['citizen', 'parent', 'patient', 'commuter', 'student']
+        if (valid.includes(data.profile)) return data.profile
+      }
+    } catch {}
+    return 'citizen'
+  })
+
+  const setProfile = (p: string) => {
+    setProfileState(p)
+    // Persist to localStorage so SafeHabitsPage and ProfilePage stay in sync
+    try {
+      const existing = JSON.parse(localStorage.getItem('mehfooze_profile') || '{}')
+      localStorage.setItem('mehfooze_profile', JSON.stringify({ ...existing, profile: p }))
+    } catch {}
+  }
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 

@@ -4,7 +4,7 @@ const PROFILES = [
   { id: 'citizen', label: 'Citizen', icon: 'person' },
   { id: 'parent', label: 'Parent', icon: 'child_care' },
   { id: 'patient', label: 'Patient', icon: 'pulmonology' },
-  { id: 'worker', label: 'Worker', icon: 'construction' },
+  { id: 'commuter', label: 'Commuter', icon: 'directions_car' },
 ]
 
 interface AdvisoryPanelProps {

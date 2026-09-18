@@ -1,11 +1,34 @@
+import { useState, useEffect } from 'react'
 import AqiMap, { Zone } from '../components/AqiMap'
 import AdvisoryPanel from '../components/AdvisoryPanel'
 import ForecastChart from '../components/ForecastChart'
 import { useAqi } from '../contexts/AqiContext'
 import { aqiColour, aqiCategory, aqiAdvice } from '../utils/aqi'
+import { API_BASE } from '../services/api'
+
+interface ExposureSummary {
+  averageAqi: number
+  peakAqi: number
+  totalHours: number
+}
 
 export default function MyAirPage() {
   const { current, forecast, advisory, tip, profile, loading, error, locationName, setProfile } = useAqi()
+  const [exposure, setExposure] = useState<ExposureSummary | null>(null)
+
+  // Fetch real exposure data whenever current zone changes
+  useEffect(() => {
+    if (!current?.stationId) return
+    const zoneId = current.stationId
+    fetch(`${API_BASE}/api/exposure/${zoneId}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((data) => setExposure({
+        averageAqi: data.averageAqi ?? 0,
+        peakAqi: data.peakAqi ?? 0,
+        totalHours: data.totalHours ?? 0,
+      }))
+      .catch(() => setExposure(null))
+  }, [current?.stationId])
 
   const mapZones: Zone[] = current
     ? [{ name: current.name, lat: current.lat, lng: current.lng, aqi: current.aqi }]
@@ -221,16 +244,32 @@ export default function MyAirPage() {
                   </p>
                   <span className="material-symbols-outlined text-tertiary text-sm">file_copy</span>
                 </div>
-                <h3 className="text-xs text-on-surface font-semibold mb-1">
-                  40% of today's safe limit reached
-                </h3>
-                <p className="text-[10px] text-on-surface-variant leading-relaxed">
-                  Based on your activity and local sensors, you have moderate exposure remaining.
-                </p>
+                {exposure ? (
+                  <>
+                    <h3 className="text-xs text-on-surface font-semibold mb-1">
+                      {Math.min(Math.round((exposure.averageAqi / 50) * 100), 200)}% of today's safe limit reached
+                    </h3>
+                    <p className="text-[10px] text-on-surface-variant leading-relaxed">
+                      Avg AQI {Math.round(exposure.averageAqi)} over {exposure.totalHours}h · Peak {Math.round(exposure.peakAqi)}.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <h3 className="text-xs text-on-surface font-semibold mb-1">
+                      Exposure data loading…
+                    </h3>
+                    <p className="text-[10px] text-on-surface-variant leading-relaxed">
+                      Based on your zone's air quality readings today.
+                    </p>
+                  </>
+                )}
               </div>
               <div className="mt-3">
                 <div className="w-full bg-surface-variant rounded-full h-1.5 mb-2.5">
-                  <div className="bg-primary h-1.5 rounded-full" style={{ width: '40%' }} />
+                  <div
+                    className="bg-primary h-1.5 rounded-full transition-all duration-700"
+                    style={{ width: `${exposure ? Math.min(Math.round((exposure.averageAqi / 50) * 100), 100) : 0}%` }}
+                  />
                 </div>
                 <a
                   className="text-primary text-[10px] font-semibold flex items-center gap-0.5 hover:underline"

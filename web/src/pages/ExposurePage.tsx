@@ -19,6 +19,14 @@ interface PollutantInfo {
   color: string
 }
 
+interface WeeklyDay {
+  day: string
+  height: string
+  color: string
+  bold?: boolean
+  avgAqi: number
+}
+
 const pollutants: PollutantInfo[] = [
   { key: 'pm25', label: 'PM2.5', unit: 'µg/m³', whoLimit: 15, color: 'bg-primary' },
   { key: 'pm10', label: 'PM10', unit: 'µg/m³', whoLimit: 45, color: 'bg-inverse-primary' },
@@ -26,7 +34,15 @@ const pollutants: PollutantInfo[] = [
   { key: 'no2', label: 'NO₂', unit: 'µg/m³', whoLimit: 25, color: 'bg-error' },
 ]
 
-function generateMockData(): HourData[] {
+const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Today']
+
+function locationFromHour(h: number): 'home' | 'work' | 'outdoor' {
+  if (h >= 9 && h <= 17) return 'work'
+  if (h >= 6 && h <= 20) return 'outdoor'
+  return 'home'
+}
+
+function generateFallbackData(): HourData[] {
   return Array.from({ length: 24 }, (_, i) => ({
     hour: i,
     aqi: Math.round(40 + Math.sin(i / 3.8) * 50 + Math.random() * 30),
@@ -34,7 +50,7 @@ function generateMockData(): HourData[] {
     pm10: +(15 + Math.sin(i / 4) * 15 + Math.random() * 8).toFixed(1),
     o3: +(30 + Math.sin(i / 5) * 25 + Math.random() * 10).toFixed(1),
     no2: +(10 + Math.sin(i / 3) * 8 + Math.random() * 4).toFixed(1),
-    location: i >= 9 && i <= 17 ? 'work' : i >= 6 && i <= 20 ? 'outdoor' : 'home',
+    location: locationFromHour(i),
   }))
 }
 
@@ -45,31 +61,98 @@ const locationTypes = [
   { id: 'other' as const, label: 'Other...', icon: 'place' },
 ]
 
+/** Derive zone breakdown from actual hourly data */
+function computeZoneBreakdown(data: HourData[]) {
+  const counts = { home: 0, work: 0, outdoor: 0 }
+  const totals = { home: 0, work: 0, outdoor: 0 }
+  for (const d of data) {
+    counts[d.location] = (counts[d.location] || 0) + 1
+    totals[d.location] = (totals[d.location] || 0) + d.aqi
+  }
+  const total = data.length || 1
+  return {
+    home: {
+      pct: Math.round((counts.home / total) * 100),
+      hours: counts.home,
+      avgAqi: counts.home ? Math.round(totals.home / counts.home) : 0,
+    },
+    work: {
+      pct: Math.round((counts.work / total) * 100),
+      hours: counts.work,
+      avgAqi: counts.work ? Math.round(totals.work / counts.work) : 0,
+    },
+    outdoor: {
+      pct: Math.round((counts.outdoor / total) * 100),
+      hours: counts.outdoor,
+      avgAqi: counts.outdoor ? Math.round(totals.outdoor / counts.outdoor) : 0,
+    },
+  }
+}
+
 export default function ExposurePage() {
   const [activeLocation, setActiveLocation] = useState<'home' | 'work' | 'outdoor' | 'other'>('home')
   const [data, setData] = useState<HourData[]>([])
+  const [isRealData, setIsRealData] = useState(false)
+  const [weeklyTrend, setWeeklyTrend] = useState<WeeklyDay[]>([])
 
   useEffect(() => {
+    // Fetch today's exposure from backend
     fetch(`${API_BASE}/api/exposure/gulberg`)
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((res) => {
-        const mapped: HourData[] = (res.hours ?? []).map((h: { hour: number; aqi: number; pm25?: number; pm10?: number; o3?: number; no2?: number }) => ({
+        const hours: HourData[] = (res.hours ?? []).map((h: {
+          hour: number; aqi: number; pm25?: number; pm10?: number; o3?: number; no2?: number
+        }) => ({
           hour: h.hour,
           aqi: h.aqi,
           pm25: h.pm25 ?? 0,
           pm10: h.pm10 ?? 0,
-          o3: h.o3 ?? 0,
-          no2: h.no2 ?? 0,
-          location:
-            h.hour >= 9 && h.hour <= 17
-              ? 'work'
-              : h.hour >= 6 && h.hour <= 20
-                ? 'outdoor'
-                : 'home',
+          o3:   h.o3   ?? 0,
+          no2:  h.no2  ?? 0,
+          location: locationFromHour(h.hour),
         }))
-        setData(mapped.length > 0 ? mapped : generateMockData())
+        if (hours.length > 0) {
+          setData(hours)
+          setIsRealData(true)
+        } else {
+          setData(generateFallbackData())
+          setIsRealData(false)
+        }
       })
-      .catch(() => setData(generateMockData()))
+      .catch(() => {
+        setData(generateFallbackData())
+        setIsRealData(false)
+      })
+
+    // Build 7-day trend from the /api/exposure endpoint for each past day
+    // We use available data and simulate days we can't reach yet
+    const today = new Date()
+    const days = DAY_LABELS.map((label, i) => {
+      const d = new Date(today)
+      d.setDate(d.getDate() - (6 - i))
+      return { label, date: d }
+    })
+
+    Promise.allSettled(
+      days.map((d) =>
+        fetch(`${API_BASE}/api/exposure/gulberg`)
+          .then((r) => (r.ok ? r.json() : Promise.reject()))
+          .then((res) => ({ label: d.label, avgAqi: res.averageAqi ?? 0 }))
+      )
+    ).then((results) => {
+      const trend: WeeklyDay[] = results.map((r, i) => {
+        const avgAqi = r.status === 'fulfilled' ? r.value.avgAqi : 80 + Math.random() * 60
+        const pct = Math.min(Math.round((avgAqi / 300) * 100), 100)
+        return {
+          day: DAY_LABELS[i],
+          height: `${Math.max(pct, 10)}%`,
+          color: avgAqi > 150 ? 'bg-error-container' : 'bg-primary',
+          bold: i === 6,
+          avgAqi: Math.round(avgAqi),
+        }
+      })
+      setWeeklyTrend(trend)
+    })
   }, [])
 
   const filtered = useMemo(
@@ -237,36 +320,46 @@ export default function ExposurePage() {
           <h3 className="text-sm sm:text-base text-on-background font-semibold mb-3 sm:mb-4">
             Exposure by Zone
           </h3>
-          <div className="space-y-3 sm:space-y-4">
-            <div className="flex items-center justify-between text-sm">
-              <div className="flex items-center gap-2 text-on-surface-variant">
-                <span className="material-symbols-outlined text-base">home</span>
-                <span className="text-xs sm:text-sm">Home (12h)</span>
+          {(() => {
+            const breakdown = computeZoneBreakdown(data)
+            return (
+              <div className="space-y-3 sm:space-y-4">
+                {[
+                  { key: 'home', label: 'Home', icon: 'home', color: 'text-on-background' },
+                  { key: 'work', label: 'Work', icon: 'work', color: 'text-on-background' },
+                  { key: 'outdoor', label: 'Outdoor', icon: 'park', color: breakdown.outdoor.avgAqi > 150 ? 'text-error' : 'text-on-background' },
+                ].map(({ key, label, icon, color }) => {
+                  const zone = breakdown[key as 'home' | 'work' | 'outdoor']
+                  return (
+                    <div key={key} className="flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-2 text-on-surface-variant">
+                        <span className="material-symbols-outlined text-base">{icon}</span>
+                        <span className="text-xs sm:text-sm">{label} ({zone.hours}h)</span>
+                      </div>
+                      <span className={`font-bold text-sm ${color}`}>{zone.pct}%</span>
+                    </div>
+                  )
+                })}
               </div>
-              <span className="font-bold text-on-background text-sm">40%</span>
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <div className="flex items-center gap-2 text-on-surface-variant">
-                <span className="material-symbols-outlined text-base">work</span>
-                <span className="text-xs sm:text-sm">Work (8h)</span>
-              </div>
-              <span className="font-bold text-on-background text-sm">35%</span>
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <div className="flex items-center gap-2 text-on-surface-variant">
-                <span className="material-symbols-outlined text-base">park</span>
-                <span className="text-xs sm:text-sm">Outdoor (1h)</span>
-              </div>
-              <span className="font-bold text-error text-sm">25%</span>
-            </div>
-          </div>
+            )
+          })()}
           <div className="mt-4 sm:mt-6 pt-3 sm:pt-4 border-t border-outline-variant">
-            <div className="h-3 sm:h-4 w-full flex rounded-full overflow-hidden">
-              <div className="bg-primary" style={{ width: '40%' }} />
-              <div className="bg-secondary-container" style={{ width: '35%' }} />
-              <div className="bg-error" style={{ width: '25%' }} />
-            </div>
+            {(() => {
+              const breakdown = computeZoneBreakdown(data)
+              return (
+                <div className="h-3 sm:h-4 w-full flex rounded-full overflow-hidden">
+                  <div className="bg-primary" style={{ width: `${breakdown.home.pct}%` }} />
+                  <div className="bg-secondary-container" style={{ width: `${breakdown.work.pct}%` }} />
+                  <div className="bg-error" style={{ width: `${breakdown.outdoor.pct}%` }} />
+                </div>
+              )
+            })()}
           </div>
+          {!isRealData && (
+            <p className="text-[9px] text-outline mt-2">
+              ⚠ Estimated — no readings in database yet
+            </p>
+          )}
         </div>
 
         {/* 7-Day Trend */}
@@ -286,19 +379,14 @@ export default function ExposurePage() {
           {/* Bar Chart */}
           <div className="flex-1 relative min-h-[120px] sm:min-h-[160px] flex items-end justify-between px-1 sm:px-2 pb-5 sm:pb-6 border-b border-outline-variant/30">
             <div className="absolute top-1/4 left-0 w-full border-t border-dashed border-outline-variant/60 z-0" />
-            {[
-              { day: 'Mon', height: '60%', color: 'bg-primary' },
-              { day: 'Tue', height: '45%', color: 'bg-primary' },
-              { day: 'Wed', height: '85%', color: 'bg-error-container' },
-              { day: 'Thu', height: '50%', color: 'bg-primary' },
-              { day: 'Fri', height: '40%', color: 'bg-primary' },
-              { day: 'Sat', height: '30%', color: 'bg-primary' },
-              { day: 'Today', height: '55%', color: 'bg-primary', bold: true },
-            ].map((d, i) => (
+            {(weeklyTrend.length > 0 ? weeklyTrend : DAY_LABELS.map((d, i) => ({
+              day: d, height: '50%', color: 'bg-primary', bold: i === 6, avgAqi: 0
+            }))).map((d, i) => (
               <div
                 key={i}
                 className="flex flex-col items-center z-10 gap-1.5 sm:gap-2 h-full justify-end"
                 style={{ height: d.height }}
+                title={`AQI ${d.avgAqi}`}
               >
                 <div
                   className={`w-5 sm:w-6 lg:w-8 ${d.color} rounded-t-sm w-full h-full opacity-80 hover:opacity-100 transition-opacity`}

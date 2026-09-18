@@ -1,12 +1,19 @@
-const AQICN_TOKEN = import.meta.env.VITE_AQICN_TOKEN
-const AQICN_BASE = 'https://api.waqi.info'
+/**
+ * Mehfooze API client — web frontend.
+ *
+ * SECURITY RULE: This file must NEVER contain API keys for AQICN, Firebase Admin,
+ * Google Directions, or any other paid/sensitive service. All external API calls
+ * are made by the backend. The frontend only calls the Mehfooze backend API.
+ *
+ * The only "API key" permitted here is the Firebase client config (apiKey), which
+ * is a public project identifier by design — it does not grant server-side access.
+ */
 
-const OPEN_METEO_BASE = 'https://api.open-meteo.com/v1'
-const OPEN_METEO_AQI = 'https://air-quality-api.open-meteo.com/v1'
-const NOMINATIM_BASE = 'https://nominatim.openstreetmap.org'
-
-// Backend API base URL — empty string means use Vite proxy (dev), full URL for production
+// Backend API base URL — empty string uses Vite proxy in dev, full URL in production
 export const API_BASE = import.meta.env.VITE_API_URL || ''
+
+// Nominatim is used only for reverse geocoding (no key required, no sensitive data)
+const NOMINATIM_BASE = 'https://nominatim.openstreetmap.org'
 
 export interface AqiReading {
   aqi: number
@@ -30,9 +37,9 @@ export interface AqiReading {
 export interface ForecastPoint {
   hour: number
   aqi: number
-  temperature: number
-  humidity: number
-  windSpeed: number
+  temperature?: number
+  humidity?: number
+  windSpeed?: number
 }
 
 export interface RouteResult {
@@ -69,93 +76,132 @@ export interface RioTip {
   generatedAt: string
 }
 
-// Fetch advisory from backend (or build locally if backend unavailable)
-export async function fetchAdvisory(profile: string): Promise<Advisory> {
+// ── AQI Data (backend only — keys never exposed) ─────────────────────────────
+
+/**
+ * Fetch live AQI + weather for all zones from the Mehfooze backend.
+ * Backend fetches from Open-Meteo + AQICN server-side.
+ */
+export async function fetchCurrentFromBackend(): Promise<AqiReading[]> {
+  const res = await fetch(`${API_BASE}/api/current`)
+  if (!res.ok) throw new Error(`Backend /api/current returned ${res.status}`)
+  return res.json()
+}
+
+/**
+ * Fetch AQI for the user's nearest zone based on coordinates.
+ * Finds closest zone from the backend's current readings.
+ */
+export async function fetchAqiByCoords(lat: number, lng: number): Promise<AqiReading> {
+  const readings: AqiReading[] = await fetchCurrentFromBackend()
+  if (!readings.length) throw new Error('No readings from backend')
+
+  // Find nearest zone using Euclidean distance (sufficient for Lahore's ~30km radius)
+  let nearest = readings[0]
+  let minDist = Infinity
+  for (const r of readings) {
+    const dist = Math.hypot(r.lat - lat, r.lng - lng)
+    if (dist < minDist) {
+      minDist = dist
+      nearest = r
+    }
+  }
+  return nearest
+}
+
+// ── Forecast (backend) ────────────────────────────────────────────────────────
+
+/**
+ * Fetch AQI forecast from the Mehfooze backend for the zone nearest to coordinates.
+ */
+export async function fetchForecast(lat: number, lng: number): Promise<ForecastPoint[]> {
+  // Determine nearest zone slug from backend readings
+  let zoneId = 'gulberg'
   try {
-    const res = await fetch(`${API_BASE}/api/advisory/${profile}`)
+    const readings: AqiReading[] = await fetchCurrentFromBackend()
+    if (readings.length) {
+      let minDist = Infinity
+      for (const r of readings) {
+        const dist = Math.hypot(r.lat - lat, r.lng - lng)
+        if (dist < minDist) { minDist = dist; zoneId = r.stationId }
+      }
+    }
+  } catch {}
+
+  const res = await fetch(`${API_BASE}/api/forecast/${zoneId}`)
+  if (!res.ok) throw new Error(`Forecast unavailable for zone ${zoneId}`)
+  return res.json()
+}
+
+// ── Advisory (backend) ────────────────────────────────────────────────────────
+
+/**
+ * Fetch profile-specific advisory from the Mehfooze backend.
+ */
+export async function fetchAdvisory(profile: string): Promise<Advisory> {
+  // Validate profile ID against canonical list
+  const validProfiles = ['citizen', 'parent', 'patient', 'commuter', 'student']
+  const safeProfile = validProfiles.includes(profile) ? profile : 'citizen'
+
+  try {
+    const res = await fetch(`${API_BASE}/api/advisory/${safeProfile}`)
     if (res.ok) return res.json()
   } catch {}
-  // Fallback: build locally from AQICN data
-  const aqiRes = await fetch(`${AQICN_BASE}/feed/lahore/?token=${AQICN_TOKEN}`)
-  const aqiData = await aqiRes.json()
-  const aqi = aqiData.data?.aqi ?? 120
-  const category = aqi <= 50 ? 'Good' : aqi <= 100 ? 'Moderate' : aqi <= 150 ? 'Unhealthy for Sensitive Groups' : aqi <= 200 ? 'Unhealthy' : 'Very Unhealthy'
-  const advice: Record<string, { message: string; actions: string[] }> = {
-    citizen: { message: 'Air quality is acceptable. Sensitive groups should limit prolonged outdoor exertion.', actions: ['Limit prolonged outdoor exertion'] },
-    parent: { message: 'Keep children indoors. Air quality is unhealthy for sensitive groups.', actions: ['Keep children indoors', 'Cancel outdoor activities'] },
-    patient: { message: 'Avoid outdoor exertion. Use air purifier indoors.', actions: ['Avoid outdoor exertion', 'Use air purifier'] },
-    worker: { message: 'Wear N95 mask if working outdoors. Take frequent breaks.', actions: ['Wear N95 mask', 'Take frequent breaks'] },
-  }
-  const { message, actions } = advice[profile] ?? advice.citizen
-  return { profile, message, actions, aqi, aqiCategory: category, aqiColour: '', generatedAt: new Date().toISOString() }
-}
 
-// Fetch AQI for a single coordinate (user's location)
-export async function fetchAqiByCoords(lat: number, lng: number): Promise<AqiReading> {
-  const res = await fetch(`${AQICN_BASE}/feed/geo:${lat};${lng}/?token=${AQICN_TOKEN}`)
-  const data = await res.json()
-  if (data.status !== 'ok') throw new Error('AQICN error')
+  // Static offline fallback — never calls external APIs from frontend
+  const fallbacks: Record<string, { message: string; actions: string[] }> = {
+    citizen:  { message: 'Check air quality before heading outside today.', actions: ['Check AQI before going out', 'Wear a mask if AQI > 100'] },
+    parent:   { message: 'Check school zone air quality before sending children out.', actions: ['Check school zone AQI', 'Keep children indoors if AQI > 150'] },
+    patient:  { message: 'Avoid outdoor exertion. Carry your inhaler.', actions: ['Stay indoors if possible', 'Carry inhaler', 'Use air purifier'] },
+    commuter: { message: 'Wear an N95 mask during your commute if AQI is elevated.', actions: ['Wear N95 mask', 'Keep vehicle windows closed'] },
+    student:  { message: 'Check AQI before outdoor sports today.', actions: ['Check AQI before outdoor activity', 'Move exercise indoors if AQI > 100'] },
+  }
+  const { message, actions } = fallbacks[safeProfile] ?? fallbacks.citizen
   return {
-    aqi: data.data.aqi,
-    pm25: data.data.iaqi?.pm25?.v ?? 0,
-    pm10: data.data.iaqi?.pm10?.v ?? 0,
-    o3: data.data.iaqi?.o3?.v ?? 0,
-    no2: data.data.iaqi?.no2?.v ?? 0,
-    co: data.data.iaqi?.co?.v ?? 0,
-    so2: data.data.iaqi?.so2?.v ?? 0,
-    stationId: data.data.city?.name?.toLowerCase().replace(/\s+/g, '-') ?? 'user-location',
-    name: data.data.city?.name ?? 'Your Location',
-    updatedAt: data.data.time?.iso ?? new Date().toISOString(),
-    lat,
-    lng,
-    temperature: data.data.iaqi?.t?.v,
-    humidity: data.data.iaqi?.h?.v,
-    wind_speed: data.data.iaqi?.w?.v,
+    profile: safeProfile,
+    message,
+    actions,
+    aqi: 120,
+    aqiCategory: 'Moderate',
+    aqiColour: '#ffff00',
+    generatedAt: new Date().toISOString(),
   }
 }
 
-// Fetch AQI for Lahore zones (used as fallback / map markers)
-export async function fetchLahoreAqi(): Promise<AqiReading[]> {
-  const zones = [
-    { name: 'Gulberg', lat: 31.5204, lng: 74.3587 },
-    { name: 'Johar Town', lat: 31.4631, lng: 74.2946 },
-    { name: 'Shahdara', lat: 31.6184, lng: 74.4826 },
-    { name: 'Model Town', lat: 31.4856, lng: 74.3146 },
-    { name: 'DHA', lat: 31.4710, lng: 74.4180 },
-  ]
+// ── Proactive Tip (backend) ───────────────────────────────────────────────────
 
-  const results = await Promise.allSettled(
-    zones.map(async (zone) => {
-      const res = await fetch(`${AQICN_BASE}/feed/geo:${zone.lat};${zone.lng}/?token=${AQICN_TOKEN}`)
-      const data = await res.json()
-      if (data.status !== 'ok') throw new Error('AQICN error')
-      return {
-        aqi: data.data.aqi,
-        pm25: data.data.iaqi?.pm25?.v ?? 0,
-        pm10: data.data.iaqi?.pm10?.v ?? 0,
-        o3: data.data.iaqi?.o3?.v ?? 0,
-        no2: data.data.iaqi?.no2?.v ?? 0,
-        co: data.data.iaqi?.co?.v ?? 0,
-        so2: data.data.iaqi?.so2?.v ?? 0,
-        stationId: zone.name.toLowerCase().replace(/\s+/g, '-'),
-        name: data.data.city?.name ?? zone.name,
-        updatedAt: data.data.time?.iso ?? new Date().toISOString(),
-        lat: zone.lat,
-        lng: zone.lng,
-      }
-    })
-  )
-
-  return results
-    .filter((r): r is PromiseFulfilledResult<AqiReading> => r.status === 'fulfilled')
-    .map((r) => r.value)
+export async function fetchTip(profile: string = 'citizen', aqi: number = 50): Promise<RioTip> {
+  try {
+    const res = await fetch(`${API_BASE}/api/tips?profile=${profile}&aqi=${aqi}`)
+    if (res.ok) return res.json()
+  } catch {}
+  return {
+    tip: 'Check air quality before heading out. Stay safe!',
+    period: 'afternoon',
+    aqiTier: 'moderate',
+    aqi,
+    profile,
+    generatedAt: new Date().toISOString(),
+  }
 }
 
-// Reverse geocode coordinates to a place name
+// ── City Rankings (backend) ───────────────────────────────────────────────────
+
+export async function fetchGlobalRankings(): Promise<CityRanking[]> {
+  try {
+    const res = await fetch(`${API_BASE}/api/rankings`)
+    if (res.ok) return res.json()
+  } catch {}
+  return []
+}
+
+// ── Geocoding (Nominatim — no key needed) ────────────────────────────────────
+
 export async function reverseGeocode(lat: number, lng: number): Promise<string> {
   try {
     const res = await fetch(
-      `${NOMINATIM_BASE}/reverse?lat=${lat}&lon=${lng}&format=json&zoom=10`
+      `${NOMINATIM_BASE}/reverse?lat=${lat}&lon=${lng}&format=json&zoom=10`,
+      { headers: { 'Accept-Language': 'en' } }
     )
     const data = await res.json()
     const addr = data.address
@@ -168,50 +214,25 @@ export async function reverseGeocode(lat: number, lng: number): Promise<string> 
   }
 }
 
-// Fetch forecast from Open-Meteo
-export async function fetchForecast(lat: number, lng: number): Promise<ForecastPoint[]> {
-  const res = await fetch(
-    `${OPEN_METEO_AQI}/air-quality?latitude=${lat}&longitude=${lng}&hourly=us_aqi,pm2_5,pm10&forecast_days=3`
-  )
-  const weatherRes = await fetch(
-    `${OPEN_METEO_BASE}/forecast?latitude=${lat}&longitude=${lng}&hourly=temperature_2m,relative_humidity_2m,wind_speed_10m&forecast_days=3`
-  )
-
-  const aqiData = await res.json()
-  const weatherData = await weatherRes.json()
-
-  const now = new Date()
-  const points: ForecastPoint[] = []
-
-  for (let i = 0; i < Math.min(aqiData.hourly?.us_aqi?.length ?? 0, 72); i++) {
-    const time = new Date(aqiData.hourly.time[i])
-    if (time < now) continue
-    points.push({
-      hour: Math.round((time.getTime() - now.getTime()) / 3600000),
-      aqi: aqiData.hourly.us_aqi[i] ?? 120,
-      temperature: weatherData.hourly?.temperature_2m?.[i] ?? 25,
-      humidity: weatherData.hourly?.relative_humidity_2m?.[i] ?? 50,
-      windSpeed: weatherData.hourly?.wind_speed_10m?.[i] ?? 5,
-    })
-  }
-
-  return points.slice(0, 48)
-}
-
-// Geocode with Nominatim
 export async function geocode(query: string): Promise<{ lat: number; lng: number; name: string }[]> {
-  const res = await fetch(
-    `${NOMINATIM_BASE}/search?q=${encodeURIComponent(query)}&format=json&limit=5&countrycodes=pk`
-  )
-  const data = await res.json()
-  return data.map((item: Record<string, unknown>) => ({
-    lat: parseFloat(item.lat as string),
-    lng: parseFloat(item.lon as string),
-    name: item.display_name as string,
-  }))
+  try {
+    const res = await fetch(
+      `${NOMINATIM_BASE}/search?q=${encodeURIComponent(query)}&format=json&limit=5&countrycodes=pk`,
+      { headers: { 'Accept-Language': 'en' } }
+    )
+    const data = await res.json()
+    return data.map((item: Record<string, unknown>) => ({
+      lat: parseFloat(item.lat as string),
+      lng: parseFloat(item.lon as string),
+      name: item.display_name as string,
+    }))
+  } catch {
+    return []
+  }
 }
 
-// Route from OSRM
+// ── Routing (OSRM — no key, public server) ───────────────────────────────────
+
 export async function fetchRoute(
   startLat: number, startLng: number, endLat: number, endLng: number
 ): Promise<RouteResult> {
@@ -219,66 +240,17 @@ export async function fetchRoute(
     `https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson&steps=true`
   )
   const data = await res.json()
-
   if (!data.routes?.length) throw new Error('No route found')
 
   const route = data.routes[0]
   return {
     distance: route.distance,
     duration: route.duration,
-    steps: route.legs[0].steps.map((s: { distance?: number; duration?: number; maneuver?: { type?: string; } }) => ({
+    steps: route.legs[0].steps.map((s: { distance?: number; duration?: number; maneuver?: { type?: string } }) => ({
       instruction: (s.maneuver?.type as string) ?? 'continue',
-      distance: (s.distance ?? 0),
-      duration: (s.duration ?? 0),
+      distance: s.distance ?? 0,
+      duration: s.duration ?? 0,
     })),
     coordinates: (route.geometry.coordinates as [number, number][]) ?? [],
-  }
-}
-
-// Fetch global city rankings from AQICN
-export async function fetchGlobalRankings(): Promise<CityRanking[]> {
-  const cities = [
-    { city: 'Delhi', country: 'India', flag: '🇮🇳', lat: 28.6139, lng: 77.2090 },
-    { city: 'Lahore', country: 'Pakistan', flag: '🇵🇰', lat: 31.5204, lng: 74.3587 },
-    { city: 'Dhaka', country: 'Bangladesh', flag: '🇧🇩', lat: 23.8103, lng: 90.4125 },
-    { city: 'Kolkata', country: 'India', flag: '🇮🇳', lat: 22.5726, lng: 88.3639 },
-    { city: 'Jakarta', country: 'Indonesia', flag: '🇮🇩', lat: -6.2088, lng: 106.8456 },
-    { city: 'Dubai', country: 'UAE', flag: '🇦🇪', lat: 25.2048, lng: 55.2708 },
-    { city: 'Karachi', country: 'Pakistan', flag: '🇵🇰', lat: 24.8607, lng: 67.0011 },
-    { city: 'Mumbai', country: 'India', flag: '🇮🇳', lat: 19.0760, lng: 72.8777 },
-    { city: 'Cairo', country: 'Egypt', flag: '🇪🇬', lat: 30.0444, lng: 31.2357 },
-    { city: 'Istanbul', country: 'Turkey', flag: '🇹🇷', lat: 41.0082, lng: 28.9784 },
-  ]
-
-  const results = await Promise.allSettled(
-    cities.map(async (c) => {
-      const res = await fetch(`${AQICN_BASE}/feed/geo:${c.lat};${c.lng}/?token=${AQICN_TOKEN}`)
-      const data = await res.json()
-      return { ...c, aqi: data.data?.aqi ?? 0 }
-    })
-  )
-
-  const ranked = results
-    .filter((r): r is PromiseFulfilledResult<CityRanking & { lat: number; lng: number }> => r.status === 'fulfilled')
-    .map((r) => r.value)
-    .sort((a, b) => b.aqi - a.aqi)
-
-  return ranked.map((c, i) => ({ rank: i + 1, city: c.city, country: c.country, flag: c.flag, aqi: c.aqi }))
-}
-
-// Fetch proactive tip from Rio
-export async function fetchTip(profile: string = 'citizen', aqi: number = 50): Promise<RioTip> {
-  try {
-    const res = await fetch(`${API_BASE}/api/tips?profile=${profile}&aqi=${aqi}`)
-    if (res.ok) return res.json()
-  } catch {}
-  // Fallback tip
-  return {
-    tip: 'Check air quality before heading out. Stay safe!',
-    period: 'afternoon',
-    aqiTier: 'moderate',
-    aqi,
-    profile,
-    generatedAt: new Date().toISOString(),
   }
 }

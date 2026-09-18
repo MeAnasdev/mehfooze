@@ -36,3 +36,14 @@ migrations/versions/*.pyc
 # Logs
 *.log
 .vercel
+
+# Android APK — distribute separately (exceeds GitHub 100MB limit)
+*.apk
+*.aab
+
+# Firebase service account key — NEVER commit this
+firebase-service-account*.json
+*-firebase-adminsdk*.json
+
+# Flutter / Mobile app (built separately, not deployed via git)
+mobile/
