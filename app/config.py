@@ -52,6 +52,7 @@ class Settings(BaseSettings):
                 "https://web-henna-nine-64.vercel.app",
                 "https://mehfooze.app",
                 "https://mehfooze-api.onrender.com",
+                "https://web-ten-phi-c7jw8ptxrq.vercel.app",
             ]
         return [
             "http://localhost:5173",
