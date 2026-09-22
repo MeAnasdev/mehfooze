@@ -185,7 +185,19 @@ export default function ExposurePage() {
     }
   }, [filtered])
 
-  const safeLimitPercent = Math.min(Math.round((avgAqi / 150) * 100), 100)
+  // WHO 24h safe limits (µg/m³) — compute exposure as weighted average across pollutants
+  const WHO_LIMITS = { pm25: 15, pm10: 45, o3: 100, no2: 25 }
+  const safeLimitPercent = useMemo(() => {
+    if (!filtered.length) return 0
+    const weights = { pm25: 0.4, pm10: 0.25, o3: 0.2, no2: 0.15 }
+    const totalWeight = Object.values(weights).reduce((s, w) => s + w, 0)
+    let weightedPct = 0
+    for (const [key, limit] of Object.entries(WHO_LIMITS)) {
+      const avg = pollutantAverages[key as keyof typeof pollutantAverages] ?? 0
+      weightedPct += ((avg / limit) * 100) * (weights[key as keyof typeof weights] / totalWeight)
+    }
+    return Math.min(Math.round(weightedPct), 100)
+  }, [filtered, pollutantAverages])
 
   return (
     <div className="space-y-3">

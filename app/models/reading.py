@@ -1,12 +1,15 @@
 """ORM model for historical + live AQI readings. One row = one hourly snapshot per zone."""
 
-from sqlalchemy import Column, String, Float, DateTime, ForeignKey, Integer
+from sqlalchemy import Column, String, Float, DateTime, ForeignKey, Integer, Index
 from sqlalchemy.sql import func
 from app.base import Base
 
 
 class AqiReading(Base):
     __tablename__ = "aqi_readings"
+    __table_args__ = (
+        Index("ix_aqi_zone_recorded", "zone_id", "recorded_at"),
+    )
 
     id          = Column(Integer,  primary_key=True, autoincrement=True)
     zone_id     = Column(String,   ForeignKey("zones.id"), nullable=False, index=True)

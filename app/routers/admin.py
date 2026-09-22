@@ -14,6 +14,7 @@ from app.database import get_db
 from app.models.reading import AqiReading
 from app.models.zone import Zone
 from app.models.notification import FcmToken
+from app.models.hazard import HazardAlert
 from app.models.content import Content
 from app.services.ingest import LAHORE_ZONES
 from app.config import settings
