@@ -53,6 +53,7 @@ class Settings(BaseSettings):
                 "https://mehfooze.app",
                 "https://mehfooze-api.onrender.com",
                 "https://web-ten-phi-c7jw8ptxrq.vercel.app",
+                "https://web-hpkxpgqgo-aperion4.vercel.app",
             ]
         return [
             "http://localhost:5173",
