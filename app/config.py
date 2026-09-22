@@ -32,6 +32,12 @@ class Settings(BaseSettings):
     # Leave blank to use OSRM (free, open source)
     google_maps_api_key: str = ""
 
+    # Sentinel Hub (Copernicus) — optional, for Sentinel-5P satellite pollution
+    # data (NO2, SO2, CO). Free account at https://www.sentinel-hub.com/
+    # Leave blank to disable the satellite layer gracefully.
+    sentinel_client_id: str = ""
+    sentinel_client_secret: str = ""
+
     app_env:   str = "development"
     log_level: str = "info"
 

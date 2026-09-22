@@ -6,9 +6,11 @@ import DownloadBanner from './DownloadBanner'
 import { requestNotificationPermission } from '../services/notifications'
 
 const navItems = [
-  { path: '/', label: 'Overview', icon: 'home' },
-  { path: '/exposure', label: 'Exposure', icon: 'timeline' },
+  { path: '/', label: 'Home', icon: 'home' },
   { path: '/map', label: 'City map', icon: 'map' },
+  { path: '/flood', label: 'Flood', icon: 'water' },
+  { path: '/report', label: 'Report', icon: 'report' },
+  { path: '/exposure', label: 'Exposure', icon: 'timeline' },
   { path: '/habits', label: 'Safe habits', icon: 'health_and_safety' },
   { path: '/profile', label: 'Profile', icon: 'person' },
 ]

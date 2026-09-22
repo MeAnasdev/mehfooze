@@ -31,6 +31,10 @@ export interface AqiReading {
   temperature?: number
   humidity?: number
   wind_speed?: number
+  precipitation?: number
+  windDirection?: number
+  raining?: boolean
+  varianceFlag?: boolean
   source?: string
 }
 
@@ -74,6 +78,252 @@ export interface RioTip {
   aqi: number
   profile: string
   generatedAt: string
+}
+
+// ── Pollution Reports (Phase 1) ────────────────────────────────────────────
+
+export type ReportType =
+  | 'waste_burning'
+  | 'industrial_smoke'
+  | 'construction_dust'
+  | 'dirty_vehicle'
+  | 'other'
+
+export interface PollutionReport {
+  id: string
+  userId: string
+  type: ReportType
+  lat: number
+  lng: number
+  photoUrl: string | null
+  note: string | null
+  nearestZone: string | null
+  nearestAqi: number | null
+  sensorCorroborated: boolean
+  likelySource: string | null
+  corroborationNote: string | null
+  status: 'submitted' | 'under_review' | 'verified' | 'routed' | 'resolved' | 'dismissed'
+  routedTo: string | null
+  resolutionNote: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CreateReportInput {
+  userId: string
+  type: ReportType
+  lat: number
+  lng: number
+  photoUrl?: string | null
+  note?: string | null
+}
+
+// ── Source Attribution (Phase 3) ────────────────────────────────────────────
+
+export interface SourceAttribution {
+  zone: string
+  aqi: number | null
+  attributed: boolean
+  source: string | null
+  distanceKm: number | null
+  direction: string | null
+  windFrom: string | null
+  confidence: 'likely' | 'possible' | 'none'
+  message: string
+  attributionSource: string
+}
+
+/** Fetch source attribution for a zone (likely upwind industrial source). */
+export async function fetchAttribution(zoneId: string): Promise<SourceAttribution | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/attribution/${zoneId}`)
+    if (res.ok) return res.json()
+  } catch {}
+  return null
+}
+
+// ── Satellite Overlay (Phase 4) ─────────────────────────────────────────────
+
+export interface SatelliteZone {
+  zoneId: string
+  name: string
+  lat: number
+  lng: number
+  no2: number | null
+  unit: string
+}
+
+export interface SatelliteOverlay {
+  available: boolean
+  meta: {
+    source: string
+    gas: string
+    resolution: string
+    cadence: string
+    note: string
+  }
+  zones: SatelliteZone[]
+  message: string
+}
+
+/** Fetch Sentinel-5P regional NO2 satellite overlay (degrades gracefully). */
+export async function fetchSatellite(): Promise<SatelliteOverlay | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/satellite`)
+    if (res.ok) return res.json()
+  } catch {}
+  return null
+}
+
+// ── Flood Monitoring (Open-Meteo GloFAS) ────────────────────────────────────
+
+export interface RiverStatus {
+  id: string
+  name: string
+  urdu: string
+  lat: number
+  lng: number
+  discharge: number | null
+  status: { level: string; label: string; color: string }
+  status24h: { level: string; label: string; color: string }
+  peak7d: number | null
+  series: { date: string; discharge: number }[]
+}
+
+export interface FloodOverview {
+  rivers: RiverStatus[]
+  anyFloodRisk: boolean
+  updatedAt: string
+  source: { authority: string; url: string; note: string }
+}
+
+/** Fetch live river-discharge flood monitoring for Punjab rivers. */
+export async function fetchFlood(): Promise<FloodOverview | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/flood`)
+    if (res.ok) return res.json()
+  } catch {}
+  return null
+}
+
+// ── AQICN Stations heatmap (dense map) ──────────────────────────────────────
+
+export interface AqiStation {
+  lat: number
+  lng: number
+  aqi: number
+  station: string
+}
+
+/** Fetch all real AQICN stations in the Lahore region (dense station map). */
+export async function fetchStations(): Promise<AqiStation[]> {
+  try {
+    const res = await fetch(`${API_BASE}/api/stations`)
+    if (res.ok) return res.json()
+  } catch {}
+  return []
+}
+
+/** Submit a pollution report to the backend (runs corroboration server-side). */
+export async function submitReport(input: CreateReportInput): Promise<PollutionReport> {
+  const res = await fetch(`${API_BASE}/api/reports`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  if (!res.ok) throw new Error(`Report submission failed (${res.status})`)
+  return res.json()
+}
+
+/** Fetch the current user's own reports. */
+export async function fetchMyReports(userId: string): Promise<PollutionReport[]> {
+  const res = await fetch(`${API_BASE}/api/reports/mine?userId=${encodeURIComponent(userId)}`)
+  if (!res.ok) return []
+  return res.json()
+}
+
+// ── Government Dashboard (Phase 2) ──────────────────────────────────────────
+
+export interface PriorityZone {
+  rank: number
+  zoneId: string
+  name: string
+  lat: number
+  lng: number
+  aqi: number
+  aqiCategory: string
+  aqiColour: string
+  population: number
+  priorityScore: number
+  scoreNote: string
+}
+
+export interface ReportStats {
+  total: number
+  byType: Record<string, number>
+  byStatus: Record<string, number>
+  byZone: Record<string, number>
+  windowDays: number
+}
+
+export interface CaseTrend {
+  reportId: string
+  zone: string | null
+  createdAt: string
+  before: { t: string; aqi: number }[]
+  after: { t: string; aqi: number }[]
+  beforeAvg: number | null
+  afterAvg: number | null
+  improved: boolean
+  note: string
+}
+
+/** Fetch population-weighted zone priority ranking. */
+export async function fetchPriorityZones(): Promise<PriorityZone[]> {
+  const res = await fetch(`${API_BASE}/api/priority`)
+  if (!res.ok) return []
+  return res.json()
+}
+
+/** Fetch all pollution reports (government queue), optionally filtered. */
+export async function fetchAllReports(status?: string, zone?: string): Promise<PollutionReport[]> {
+  const params = new URLSearchParams()
+  if (status) params.set('status', status)
+  if (zone) params.set('zone', zone)
+  const qs = params.toString() ? `?${params.toString()}` : ''
+  const res = await fetch(`${API_BASE}/api/reports${qs}`)
+  if (!res.ok) return []
+  return res.json()
+}
+
+/** Update a report's case status (government action). */
+export async function updateReportStatus(
+  reportId: string,
+  status: string,
+  routedTo?: string,
+  resolutionNote?: string,
+): Promise<PollutionReport> {
+  const res = await fetch(`${API_BASE}/api/reports/${reportId}/status`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status, routedTo, resolutionNote }),
+  })
+  if (!res.ok) throw new Error(`Status update failed (${res.status})`)
+  return res.json()
+}
+
+/** Fetch report statistics (counts by type/status/zone). */
+export async function fetchReportStats(): Promise<ReportStats | null> {
+  const res = await fetch(`${API_BASE}/api/reports/stats`)
+  if (!res.ok) return null
+  return res.json()
+}
+
+/** Fetch before/after AQI trend for a case. */
+export async function fetchCaseTrend(reportId: string): Promise<CaseTrend | null> {
+  const res = await fetch(`${API_BASE}/api/reports/${reportId}/trend`)
+  if (!res.ok) return null
+  return res.json()
 }
 
 // ── AQI Data (backend only — keys never exposed) ─────────────────────────────
@@ -138,13 +388,16 @@ export async function fetchForecast(lat: number, lng: number): Promise<ForecastP
 /**
  * Fetch profile-specific advisory from the Mehfooze backend.
  */
-export async function fetchAdvisory(profile: string): Promise<Advisory> {
+export async function fetchAdvisory(profile: string, zone?: string): Promise<Advisory> {
   // Validate profile ID against canonical list
   const validProfiles = ['citizen', 'parent', 'patient', 'commuter', 'student']
   const safeProfile = validProfiles.includes(profile) ? profile : 'citizen'
 
+  // Pass zone for local (rain-aware) advisory when known
+  const zoneParam = zone ? `?zone=${encodeURIComponent(zone)}` : ''
+
   try {
-    const res = await fetch(`${API_BASE}/api/advisory/${safeProfile}`)
+    const res = await fetch(`${API_BASE}/api/advisory/${safeProfile}${zoneParam}`)
     if (res.ok) return res.json()
   } catch {}
 

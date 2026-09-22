@@ -87,8 +87,11 @@ export function AqiProvider({ children }: { children: ReactNode }) {
   }, [current?.lat, current?.lng])
 
   useEffect(() => {
-    fetchAdvisory(profile).then(setAdvisory).catch(() => {})
-  }, [profile])
+    // Pass the user's current zone so the advisory reflects LOCAL air quality
+    // (rain-aware), not the citywide worst-case. Re-runs when zone or profile changes.
+    const zone = current?.stationId
+    fetchAdvisory(profile, zone).then(setAdvisory).catch(() => {})
+  }, [profile, current?.stationId])
 
   useEffect(() => {
     if (!current) return

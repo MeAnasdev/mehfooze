@@ -1,11 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import { MapContainer, TileLayer, Marker, CircleMarker, Popup, useMap } from 'react-leaflet'
 import { useGeolocation } from '../hooks/useGeolocation'
-import { fetchAqiByCoords, geocode, fetchCurrentFromBackend } from '../services/api'
+import { fetchAqiByCoords, geocode, fetchCurrentFromBackend, fetchStations, AqiStation } from '../services/api'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-
-const GEOAPIFY_KEY = import.meta.env.VITE_GEOAPIFY_KEY
 
 const userIcon = L.divIcon({
   className: '',
@@ -84,6 +82,10 @@ export default function MapPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<{ lat: number; lng: number; name: string }[]>([])
   const [showSearch, setShowSearch] = useState(false)
+
+  // Dense real AQICN station markers (heatmap-style)
+  const [stations, setStations] = useState<AqiStation[]>([])
+  useEffect(() => { fetchStations().then(setStations).catch(() => setStations([])) }, [])
 
   useEffect(() => {
     if (geoLoading) return
@@ -274,6 +276,27 @@ export default function MapPage() {
               </CircleMarker>
             )
           })}
+
+          {/* Dense real AQICN stations — labelled numeric markers like the reference heatmap */}
+          {activePollutant === 'aqi' && stations.map((st, i) => (
+            <Marker
+              key={`st-${i}`}
+              position={[st.lat, st.lng]}
+              icon={L.divIcon({
+                className: '',
+                html: `<div style="background:${aqiColor(st.aqi)};color:${st.aqi>100?'#fff':'#000'};font-size:10px;font-weight:700;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.4)">${Math.round(st.aqi)}</div>`,
+                iconSize: [26, 26],
+                iconAnchor: [13, 13],
+              })}
+            >
+              <Popup>
+                <div className="text-center">
+                  <strong className="text-xs">{st.station}</strong><br />
+                  <span className="text-[11px]">AQI {Math.round(st.aqi)}</span>
+                </div>
+              </Popup>
+            </Marker>
+          ))}
 
           <RecenterButton lat={lat} lng={lng} />
         </MapContainer>

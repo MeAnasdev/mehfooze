@@ -13,6 +13,15 @@ import ExposurePage from './pages/ExposurePage'
 import SafeHabitsPage from './pages/SafeHabitsPage'
 import ProfilePage from './pages/ProfilePage'
 import AdminPage from './pages/AdminPage'
+import ReportPage from './pages/ReportPage'
+import MyReportsPage from './pages/MyReportsPage'
+import FloodPage from './pages/FloodPage'
+import GovLayout from './pages/gov/GovLayout'
+import GovOverview from './pages/gov/GovOverview'
+import GovZones from './pages/gov/GovZones'
+import GovReports from './pages/gov/GovReports'
+import GovMap from './pages/gov/GovMap'
+import GovPriority from './pages/gov/GovPriority'
 import DownloadPage from './pages/DownloadPage'
 import ApkPage from './pages/ApkPage'
 import NotFoundPage from './pages/NotFoundPage'
@@ -40,10 +49,22 @@ function AppRoutes() {
         <Route index element={<MyAirPage />} />
         <Route path="map" element={<MapPage />} />
         <Route path="exposure" element={<ExposurePage />} />
+        <Route path="report" element={<ReportPage />} />
+        <Route path="my-reports" element={<MyReportsPage />} />
+        <Route path="flood" element={<FloodPage />} />
         <Route path="habits" element={<SafeHabitsPage />} />
         <Route path="profile" element={<ProfilePage />} />
         <Route path="admin" element={<AdminPage />} />
         <Route path="*" element={<NotFoundPage />} />
+      </Route>
+
+      {/* Government Dashboard — separate professional surface (same brand) */}
+      <Route path="/gov" element={<ProtectedRoute><GovLayout /></ProtectedRoute>}>
+        <Route index element={<GovOverview />} />
+        <Route path="zones" element={<GovZones />} />
+        <Route path="reports" element={<GovReports />} />
+        <Route path="map" element={<GovMap />} />
+        <Route path="priority" element={<GovPriority />} />
       </Route>
     </Routes>
   )

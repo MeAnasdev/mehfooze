@@ -149,11 +149,53 @@ def get_current_max_aqi(db: Session | None = None) -> float:
     return 150.0
 
 
-def build_advisory(profile: str, db: Session | None = None) -> dict:
+def get_zone_current_aqi(zone_id: str, db: Session | None = None) -> float | None:
     """
-    Return {message, actions, aqi} for the given profile based on current AQI.
+    Get the CURRENT AQI for a SPECIFIC zone — the freshest reading for that zone.
+
+    This is what a user should see for their own location. Unlike the citywide
+    max, this reflects local conditions — so when rain clears the air in the
+    user's zone, the reading drops immediately even if another zone is still bad.
+
+    Returns None if no reading exists for the zone (caller decides fallback).
     """
-    aqi = get_current_max_aqi(db)
+    if not db:
+        return None
+    try:
+        latest = (
+            db.query(AqiReading)
+            .filter(AqiReading.zone_id == zone_id)
+            .order_by(AqiReading.recorded_at.desc())
+            .first()
+        )
+        if latest is not None:
+            return float(latest.aqi)
+    except Exception as exc:
+        logger.warning("Zone AQI read failed for %s: %s", zone_id, exc)
+    return None
+
+
+def build_advisory(profile: str, db: Session | None = None, zone_id: str | None = None) -> dict:
+    """
+    Return {message, actions, aqi} for the given profile.
+
+    If zone_id is provided, the advisory is based on that zone's CURRENT air
+    quality (local, rain-aware). If zone_id is omitted, it falls back to the
+    citywide maximum (worst-case, used for city-level or unknown-location views).
+
+    This fixes the "rain bug": a user in a zone where it just rained now sees
+    their zone's improved air, not the citywide worst-case reading.
+    """
+    aqi: float | None = None
+
+    # Prefer the user's specific zone reading when we know their zone
+    if zone_id:
+        aqi = get_zone_current_aqi(zone_id, db)
+
+    # Fallback: citywide worst-case (or live fetch / default)
+    if aqi is None:
+        aqi = get_current_max_aqi(db)
+
     rules = _RULES.get(profile, _RULES["citizen"])
 
     for threshold, message, actions in rules:

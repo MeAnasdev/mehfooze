@@ -23,7 +23,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import current, forecast, advisory, route as route_router, priority as priority_router, exposure as exposure_router, ranking as ranking_router, pois as pois_router, notifications as notifications_router, tips as tips_router, admin as admin_router
+from app.routers import current, forecast, advisory, route as route_router, priority as priority_router, exposure as exposure_router, ranking as ranking_router, pois as pois_router, notifications as notifications_router, tips as tips_router, admin as admin_router, reports as reports_router, flood as flood_router
 from app.config import settings
 from app.database import engine
 from app.models import zone as zone_model
@@ -31,6 +31,7 @@ from app.models import reading as reading_model
 from app.models import notification as notification_model
 from app.models import hazard as hazard_model
 from app.models import content as content_model
+from app.models import report as report_model
 
 logging.basicConfig(level=settings.log_level.upper())
 logger = logging.getLogger(__name__)
@@ -42,6 +43,19 @@ async def lifespan(app: FastAPI):
     from app.database import Base
     Base.metadata.create_all(bind=engine)
     logger.info("Database tables verified / created.")
+
+    # Lightweight column migration: add wind_direction to aqi_readings if missing.
+    # create_all() does not ALTER existing tables, so we add new columns manually.
+    try:
+        from sqlalchemy import text, inspect
+        inspector = inspect(engine)
+        cols = [c["name"] for c in inspector.get_columns("aqi_readings")]
+        if "wind_direction" not in cols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE aqi_readings ADD COLUMN wind_direction FLOAT"))
+            logger.info("Migration: added wind_direction column to aqi_readings.")
+    except Exception as exc:
+        logger.warning("wind_direction migration skipped/failed: %s", exc)
 
     # Seed zones into the DB
     from app.database import SessionLocal
@@ -92,6 +106,8 @@ app.include_router(pois_router.router,    prefix="/api")
 app.include_router(notifications_router.router, prefix="/api")
 app.include_router(tips_router.router,         prefix="/api")
 app.include_router(admin_router.router,       prefix="/api")
+app.include_router(reports_router.router,     prefix="/api")
+app.include_router(flood_router.router,       prefix="/api")
 
 
 @app.get("/health", tags=["ops"])

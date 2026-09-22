@@ -5,8 +5,6 @@ import NavigationPanel from '../components/NavigationPanel'
 import { useGpsTracker } from '../hooks/useGpsTracker'
 import L from 'leaflet'
 
-const GEOAPIFY_KEY = import.meta.env.VITE_GEOAPIFY_KEY
-
 interface NavPageProps {
   coordinates: [number, number][]
   steps: { instruction: string; distance: number; duration: number }[]

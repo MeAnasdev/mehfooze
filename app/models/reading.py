@@ -20,6 +20,7 @@ class AqiReading(Base):
     temperature = Column(Float,    nullable=True)   # °C
     humidity    = Column(Float,    nullable=True)   # %
     wind_speed  = Column(Float,    nullable=True)   # km/h
+    wind_direction = Column(Float, nullable=True)   # degrees (0=N, 90=E) — direction wind comes FROM
     recorded_at = Column(
         DateTime(timezone=True),
         nullable=False,

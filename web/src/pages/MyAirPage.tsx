@@ -1,10 +1,16 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import AqiMap, { Zone } from '../components/AqiMap'
-import AdvisoryPanel from '../components/AdvisoryPanel'
 import ForecastChart from '../components/ForecastChart'
+import AqiSlideshow from '../components/AqiSlideshow'
+import WeatherFeatureCard from '../components/WeatherFeatureCard'
 import { useAqi } from '../contexts/AqiContext'
 import { aqiColour, aqiCategory, aqiAdvice } from '../utils/aqi'
-import { API_BASE } from '../services/api'
+import {
+  API_BASE, fetchAttribution, SourceAttribution,
+  fetchFlood, FloodOverview,
+  fetchCurrentFromBackend, AqiReading,
+} from '../services/api'
 
 interface ExposureSummary {
   averageAqi: number
@@ -12,283 +18,272 @@ interface ExposureSummary {
   totalHours: number
 }
 
-export default function MyAirPage() {
-  const { current, forecast, advisory, tip, profile, loading, error, locationName, setProfile } = useAqi()
-  const [exposure, setExposure] = useState<ExposureSummary | null>(null)
+function freshness(iso?: string): { label: string; stale: boolean } {
+  if (!iso) return { label: 'just now', stale: false }
+  const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000))
+  if (mins < 1) return { label: 'just now', stale: false }
+  if (mins < 60) return { label: `${mins} min ago`, stale: mins > 15 }
+  return { label: `${Math.round(mins / 60)}h ago`, stale: true }
+}
 
-  // Fetch real exposure data whenever current zone changes
+function whatToDo(aqi: number): { title: string; icon: string } {
+  if (aqi <= 50)  return { title: 'Great day to be outside', icon: 'sentiment_very_satisfied' }
+  if (aqi <= 100) return { title: 'Fine for most people', icon: 'sentiment_satisfied' }
+  if (aqi <= 150) return { title: 'Sensitive groups take care', icon: 'sentiment_neutral' }
+  if (aqi <= 200) return { title: 'Limit time outdoors', icon: 'masks' }
+  if (aqi <= 300) return { title: 'Stay indoors if you can', icon: 'home' }
+  return { title: 'Avoid going outside', icon: 'dangerous' }
+}
+
+export default function MyAirPage() {
+  const navigate = useNavigate()
+  const { current, forecast, tip, loading, error, locationName } = useAqi()
+  const [exposure, setExposure] = useState<ExposureSummary | null>(null)
+  const [attribution, setAttribution] = useState<SourceAttribution | null>(null)
+  const [flood, setFlood] = useState<FloodOverview | null>(null)
+  const [allZones, setAllZones] = useState<AqiReading[]>([])
+
   useEffect(() => {
     if (!current?.stationId) return
-    const zoneId = current.stationId
-    fetch(`${API_BASE}/api/exposure/${zoneId}`)
+    fetch(`${API_BASE}/api/exposure/${current.stationId}`)
       .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((data) => setExposure({
-        averageAqi: data.averageAqi ?? 0,
-        peakAqi: data.peakAqi ?? 0,
-        totalHours: data.totalHours ?? 0,
-      }))
+      .then((d) => setExposure({ averageAqi: d.averageAqi ?? 0, peakAqi: d.peakAqi ?? 0, totalHours: d.totalHours ?? 0 }))
       .catch(() => setExposure(null))
+    fetchAttribution(current.stationId).then(setAttribution).catch(() => setAttribution(null))
   }, [current?.stationId])
 
-  const mapZones: Zone[] = current
-    ? [{ name: current.name, lat: current.lat, lng: current.lng, aqi: current.aqi }]
-    : []
+  useEffect(() => { fetchFlood().then(setFlood).catch(() => setFlood(null)) }, [])
+  useEffect(() => { fetchCurrentFromBackend().then(setAllZones).catch(() => setAllZones([])) }, [])
 
   const now = new Date()
+  const aqi = current?.aqi ?? 0
+  const colour = aqiColour(aqi)
+  const category = aqiCategory(aqi)
+  const action = whatToDo(aqi)
+  const mapZones: Zone[] = current ? [{ name: current.name, lat: current.lat, lng: current.lng, aqi: current.aqi }] : []
+  const exposurePct = exposure ? Math.min(Math.round((exposure.averageAqi / 50) * 100), 200) : 0
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-start justify-between mb-1">
-        <div>
-          <p className="text-[10px] text-tertiary uppercase tracking-wider mb-0.5 font-semibold">
-            {now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}{' '}
-            &middot; {locationName || 'Lahore'}
-          </p>
-          <h2 className="text-xl sm:text-2xl text-on-surface font-bold leading-tight">
-            Your air, at a glance.
-          </h2>
-          <p className="text-xs text-on-surface-variant mt-0.5">
-            Know what's ahead before you step outside.
-          </p>
-        </div>
+    <div className="space-y-4">
+      {/* Greeting */}
+      <div>
+        <p className="text-[10px] text-tertiary uppercase tracking-wider mb-0.5 font-semibold">
+          {now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} · {locationName || 'Lahore'}
+        </p>
+        <h2 className="text-xl sm:text-2xl text-on-surface font-bold leading-tight">Your air, at a glance.</h2>
       </div>
 
-      {loading && (
-        <div className="flex items-center justify-center h-40">
-          <div className="loading-spinner" />
-        </div>
-      )}
+      {loading && <div className="flex items-center justify-center h-40"><div className="loading-spinner" /></div>}
 
       {error && (
         <div className="p-3 bg-error-container border border-error rounded-lg text-on-error-container text-xs flex items-start gap-2">
           <span className="material-symbols-outlined text-error text-sm mt-0.5">warning</span>
-          <div>
-            <h4 className="font-semibold text-on-error-container text-xs">Data Unavailable</h4>
-            <p className="mt-0.5">{error}</p>
-          </div>
-        </div>
-      )}
-
-      {!loading && current && current.aqi > 150 && (
-        <div className="p-3 bg-error/10 border border-error/30 rounded-xl text-xs flex items-start gap-2.5">
-          <span className="material-symbols-outlined text-error text-base mt-0.5">warning</span>
-          <div className="flex-1">
-            <h4 className="font-bold text-on-surface text-xs">
-              Hazard: Air quality is {aqiCategory(current.aqi)}
-            </h4>
-            <p className="text-on-surface-variant mt-0.5">
-              Limit outdoor activity. Wear an N95 mask if you must go outside.
-            </p>
-          </div>
-          <span
-            className="inline-block px-2 py-0.5 rounded-full text-white text-[10px] font-bold shrink-0"
-            style={{ background: aqiColour(current.aqi) }}
-          >
-            AQI {Math.round(current.aqi)}
-          </span>
-        </div>
-      )}
-
-      {!loading && current && (
-        <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 shadow-ambient">
-          <div className="flex items-center gap-3">
-            <div
-              className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
-              style={{ background: `${aqiColour(current.aqi)}20` }}
-            >
-              <span className="material-symbols-outlined text-lg" style={{ color: aqiColour(current.aqi) }}>
-                {current.aqi <= 50 ? 'check_circle' : current.aqi <= 100 ? 'info' : current.aqi <= 150 ? 'schedule' : 'block'}
-              </span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <h3 className="text-sm font-bold text-on-surface">
-                {current.aqi <= 50
-                  ? 'Yes, enjoy the outdoors!'
-                  : current.aqi <= 100
-                    ? 'Okay for most people'
-                    : current.aqi <= 150
-                      ? 'Consider staying in'
-                      : 'Stay indoors if possible'}
-              </h3>
-              <p className="text-[11px] text-on-surface-variant mt-0.5 leading-relaxed">
-                {aqiAdvice(current.aqi).message}
-              </p>
-            </div>
-            <span
-              className="text-2xl font-bold shrink-0"
-              style={{ color: aqiColour(current.aqi) }}
-            >
-              {Math.round(current.aqi)}
-            </span>
-          </div>
-        </div>
-      )}
-
-      {!loading && tip && (
-        <div className="bg-primary-container/10 border border-primary-container/30 rounded-xl p-3.5 flex items-start gap-3">
-          <div className="w-8 h-8 rounded-full bg-primary-container/20 flex items-center justify-center shrink-0">
-            <img src="/ghost-logo.png" alt="Rio" className="w-5 h-5 object-contain" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[10px] text-primary uppercase tracking-wider font-bold mb-0.5">Rio says</p>
-            <p className="text-xs text-on-surface leading-relaxed">{tip.tip}</p>
-          </div>
+          <div><h4 className="font-semibold text-xs">Data Unavailable</h4><p className="mt-0.5">{error}</p></div>
         </div>
       )}
 
       {!loading && current && (
         <>
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-3">
-            <div className="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden shadow-ambient flex flex-col sm:flex-row">
-              <div className="flex-1 p-4 bg-primary-container/5 flex flex-col justify-center relative overflow-hidden">
-                <div className="absolute -right-2 -top-2 opacity-[0.07]">
-                  <span className="material-symbols-outlined text-[80px]">sunny</span>
-                </div>
-                <div className="relative z-10">
-                  <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-primary/10 mb-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse-marker" />
-                    <span className="text-[9px] text-primary uppercase tracking-widest font-bold">
-                      {aqiCategory(current.aqi)}
-                    </span>
-                  </div>
-                  <h3 className="text-lg sm:text-xl text-on-surface font-semibold leading-snug mb-1.5">
-                    A little care goes a long way.
-                  </h3>
-                  <p className="text-[11px] sm:text-xs text-on-surface-variant leading-relaxed max-w-md">
-                    The air is mostly comfortable today. If you're sensitive to pollution, keep your
-                    outdoor plans light around 4pm.
-                  </p>
-                  <a
-                    href="/exposure"
-                    className="inline-flex items-center gap-1 mt-2.5 text-primary text-xs font-semibold hover:underline"
-                  >
-                    View your exposure{' '}
-                    <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
-                  </a>
+          {/* ── HERO: big AQI + what to do ─────────────────────────── */}
+          <div className="rounded-2xl overflow-hidden shadow-ambient border border-outline-variant">
+            <div className="p-5 flex items-center gap-4" style={{ background: `linear-gradient(135deg, ${colour}22, ${colour}08)` }}>
+              <div className="relative w-24 h-24 shrink-0 rounded-full flex items-center justify-center" style={{ background: `${colour}18` }}>
+                <div className="text-center">
+                  <div className="text-3xl font-bold leading-none" style={{ color: colour }}>{Math.round(aqi)}</div>
+                  <div className="text-[8px] text-on-surface-variant mt-0.5 uppercase tracking-wide">AQI</div>
                 </div>
               </div>
-              <div className="w-full sm:w-44 lg:w-48 p-4 bg-surface-container-lowest flex flex-row sm:flex-col items-center justify-between sm:justify-center gap-3 sm:gap-2 border-t sm:border-t-0 sm:border-l border-outline-variant/50">
+              <div className="flex-1 min-w-0">
+                <span className="inline-block px-2 py-0.5 rounded-full text-white text-[10px] font-bold mb-1" style={{ background: colour }}>
+                  {category}
+                </span>
                 <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-amber-500 text-2xl">partly_cloudy_day</span>
-                  <div>
-                    <p className="text-[10px] text-on-surface-variant">Feels like</p>
-                    <p className="text-sm font-semibold text-on-surface">
-                      {current.temperature ? `${Math.round(current.temperature + 2)}°C` : '--°C'}
-                    </p>
-                  </div>
+                  <span className="material-symbols-outlined text-xl" style={{ color: colour }}>{action.icon}</span>
+                  <h3 className="text-base font-bold text-on-surface leading-tight">{action.title}</h3>
                 </div>
-                <div className="flex gap-3 text-[10px] text-on-surface-variant">
-                  <span className="flex items-center gap-1">
-                    <span className="material-symbols-outlined text-[12px]">humidity_percentage</span>
-                    {current.humidity ? `${Math.round(current.humidity)}%` : '--%'}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <span className="material-symbols-outlined text-[12px]">air</span>
-                    {current.wind_speed ? `${Math.round(current.wind_speed)}` : '--'} km/h
-                  </span>
-                </div>
+                <p className="text-[11px] text-on-surface-variant mt-1 leading-relaxed">{aqiAdvice(aqi).message}</p>
               </div>
             </div>
-
-            <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 shadow-ambient flex flex-col items-center justify-center relative">
-              <div className="absolute top-3 right-3 flex items-center gap-1 text-primary">
-                <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse-marker" />
-                <span className="text-[9px] font-bold">Live</span>
-              </div>
-              <p className="text-[9px] text-tertiary uppercase tracking-wider mb-3 w-full text-left font-semibold">
-                Your Current Score
-              </p>
-              <div className="relative w-32 h-32 lg:w-36 lg:h-36 rounded-full flex items-center justify-center mb-3">
-                <div className="absolute inset-0 rounded-full border-[10px] border-surface-variant" />
-                <div
-                  className="absolute inset-0 rounded-full border-[10px] border-transparent"
-                  style={{
-                    borderTopColor: aqiColour(current.aqi),
-                    borderRightColor: aqiColour(current.aqi),
-                    transform: 'rotate(45deg)',
-                  }}
-                />
-                <div className="text-center z-10">
-                  <div className="text-3xl lg:text-4xl text-on-surface leading-none font-bold">
-                    {Math.round(current.aqi)}
-                  </div>
-                  <div className="text-[9px] text-on-surface-variant mt-0.5">Average AQI</div>
-                </div>
-              </div>
-              <div className="w-full flex items-center justify-between pt-2.5 border-t border-outline-variant/30">
-                <span className="text-[9px] text-tertiary">
-                  Updated {new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-                </span>
-              </div>
+            {/* freshness + source strip */}
+            <div className="px-4 py-2 bg-surface-container-lowest flex items-center justify-between text-[9px] border-t border-outline-variant/50">
+              <span className={freshness(current.updatedAt).stale ? 'text-error font-semibold' : 'text-tertiary'}>
+                {freshness(current.updatedAt).stale ? '⚠ ' : ''}Updated {freshness(current.updatedAt).label}
+              </span>
+              <span className="text-outline truncate max-w-[60%]" title={current.source}>{current.source}</span>
             </div>
           </div>
 
+          {/* ── Featured weather card ──────────────────────────────── */}
+          <WeatherFeatureCard reading={current} locationName={locationName} />
+
+          {/* ── Rain / variance context banners ────────────────────── */}
+          {current.raining && (
+            <div className="p-2.5 bg-secondary/10 border border-secondary/30 rounded-xl text-[11px] flex items-center gap-2">
+              <span className="material-symbols-outlined text-secondary text-base">rainy</span>
+              <span className="text-on-surface-variant"><b className="text-on-surface">Rain is clearing the air.</b> This reading reflects current, improving conditions.</span>
+            </div>
+          )}
+
+          {/* ── Quick stat tiles ───────────────────────────────────── */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+            <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-3">
+              <div className="flex items-center gap-1.5 mb-1">
+                <span className="material-symbols-outlined text-tertiary text-sm">masks</span>
+                <span className="text-[9px] text-tertiary uppercase tracking-wider font-semibold">PM2.5</span>
+              </div>
+              <div className="text-lg font-bold text-on-surface">{Math.round(current.pm25)} <span className="text-[9px] text-on-surface-variant font-normal">µg/m³</span></div>
+            </div>
+            <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-3">
+              <div className="flex items-center gap-1.5 mb-1">
+                <span className="material-symbols-outlined text-amber-500 text-sm">device_thermostat</span>
+                <span className="text-[9px] text-tertiary uppercase tracking-wider font-semibold">Temp</span>
+              </div>
+              <div className="text-lg font-bold text-on-surface">{Math.round(current.temperature ?? 0)}°<span className="text-[9px] text-on-surface-variant font-normal">C</span></div>
+            </div>
+            <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-3">
+              <div className="flex items-center gap-1.5 mb-1">
+                <span className="material-symbols-outlined text-secondary text-sm">air</span>
+                <span className="text-[9px] text-tertiary uppercase tracking-wider font-semibold">Wind</span>
+              </div>
+              <div className="text-lg font-bold text-on-surface">{Math.round(current.wind_speed ?? 0)} <span className="text-[9px] text-on-surface-variant font-normal">km/h</span></div>
+            </div>
+            <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-3">
+              <div className="flex items-center gap-1.5 mb-1">
+                <span className="material-symbols-outlined text-primary text-sm">water_drop</span>
+                <span className="text-[9px] text-tertiary uppercase tracking-wider font-semibold">Humidity</span>
+              </div>
+              <div className="text-lg font-bold text-on-surface">{Math.round(current.humidity ?? 0)}<span className="text-[9px] text-on-surface-variant font-normal">%</span></div>
+            </div>
+          </div>
+
+          {/* ── AQI slideshow across zones ─────────────────────────── */}
+          {allZones.length > 0 && <AqiSlideshow zones={allZones} />}
+
+          {/* ── Rio tip ─────────────────────────────────────────────── */}
+          {tip && (
+            <div className="bg-primary-container/10 border border-primary-container/30 rounded-xl p-3.5 flex items-start gap-3">
+              <div className="w-8 h-8 rounded-full bg-primary-container/20 flex items-center justify-center shrink-0">
+                <img src="/ghost-logo.png" alt="Rio" className="w-5 h-5 object-contain" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-primary uppercase tracking-wider font-bold mb-0.5">Rio says</p>
+                <p className="text-xs text-on-surface leading-relaxed">{tip.tip}</p>
+              </div>
+            </div>
+          )}
+
+          {/* ── Likely source (attribution) ─────────────────────────── */}
+          {attribution && attribution.attributed && attribution.source && (
+            <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-3.5 flex items-start gap-3">
+              <div className="w-9 h-9 rounded-full bg-tertiary/15 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-tertiary text-lg">factory</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <p className="text-[10px] text-tertiary uppercase tracking-wider font-bold">Likely Source</p>
+                  <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-semibold ${attribution.confidence === 'likely' ? 'bg-amber-100 text-amber-700' : 'bg-tertiary/15 text-tertiary'}`}>
+                    {attribution.confidence === 'likely' ? 'Likely' : 'Possible'}
+                  </span>
+                </div>
+                <p className="text-xs text-on-surface leading-relaxed">{attribution.message}</p>
+                <p className="text-[9px] text-outline mt-1">Source data: {attribution.attributionSource}</p>
+              </div>
+            </div>
+          )}
+
+          {/* ── Report CTA ──────────────────────────────────────────── */}
+          <button onClick={() => navigate('/report')} className="w-full flex items-center gap-3 p-3.5 rounded-xl bg-primary text-on-primary shadow-ambient hover:opacity-95 transition-opacity">
+            <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+              <span className="material-symbols-outlined text-lg">report</span>
+            </div>
+            <div className="flex-1 min-w-0 text-left">
+              <h4 className="text-sm font-bold leading-tight">See pollution? Report it.</h4>
+              <p className="text-[11px] opacity-90 leading-tight">Turn what you see into evidence the authorities can act on.</p>
+            </div>
+            <span className="material-symbols-outlined text-lg">arrow_forward</span>
+          </button>
+
+          {/* ── Forecast + Exposure ─────────────────────────────────── */}
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-3">
             <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 shadow-ambient">
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <p className="text-[9px] text-tertiary uppercase tracking-wider mb-0.5 font-semibold">
-                    The Next 24 Hours
-                  </p>
-                  <h3 className="text-xs text-on-surface font-semibold">Plan around the air</h3>
-                </div>
+              <div className="mb-3">
+                <p className="text-[9px] text-tertiary uppercase tracking-wider mb-0.5 font-semibold">The Next 24 Hours</p>
+                <h3 className="text-xs text-on-surface font-semibold">Plan around the air</h3>
               </div>
               <ForecastChart data={forecast} zone={current.name} />
             </div>
 
-            <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 shadow-ambient flex flex-col justify-between">
+            <button onClick={() => navigate('/exposure')} className="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 shadow-ambient flex flex-col justify-between text-left hover:border-primary transition-colors">
               <div>
                 <div className="flex justify-between items-start mb-2">
-                  <p className="text-[9px] text-tertiary uppercase tracking-wider font-semibold">
-                    Exposure Budget
-                  </p>
-                  <span className="material-symbols-outlined text-tertiary text-sm">file_copy</span>
+                  <p className="text-[9px] text-tertiary uppercase tracking-wider font-semibold">Today's Exposure</p>
+                  <span className="material-symbols-outlined text-tertiary text-sm">monitoring</span>
                 </div>
-                {exposure ? (
-                  <>
-                    <h3 className="text-xs text-on-surface font-semibold mb-1">
-                      {Math.min(Math.round((exposure.averageAqi / 50) * 100), 200)}% of today's safe limit reached
-                    </h3>
-                    <p className="text-[10px] text-on-surface-variant leading-relaxed">
-                      Avg AQI {Math.round(exposure.averageAqi)} over {exposure.totalHours}h · Peak {Math.round(exposure.peakAqi)}.
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <h3 className="text-xs text-on-surface font-semibold mb-1">
-                      Exposure data loading…
-                    </h3>
-                    <p className="text-[10px] text-on-surface-variant leading-relaxed">
-                      Based on your zone's air quality readings today.
-                    </p>
-                  </>
-                )}
+                <div className="text-2xl font-bold text-on-surface mb-1">{exposure ? `${exposurePct}%` : '—'}</div>
+                <p className="text-[10px] text-on-surface-variant leading-relaxed">
+                  {exposure ? `of WHO daily limit · avg AQI ${Math.round(exposure.averageAqi)} over ${exposure.totalHours}h` : 'Loading your zone exposure…'}
+                </p>
               </div>
               <div className="mt-3">
-                <div className="w-full bg-surface-variant rounded-full h-1.5 mb-2.5">
-                  <div
-                    className="bg-primary h-1.5 rounded-full transition-all duration-700"
-                    style={{ width: `${exposure ? Math.min(Math.round((exposure.averageAqi / 50) * 100), 100) : 0}%` }}
-                  />
+                <div className="w-full bg-surface-variant rounded-full h-1.5 mb-2">
+                  <div className="bg-primary h-1.5 rounded-full transition-all duration-700" style={{ width: `${exposure ? Math.min(exposurePct, 100) : 0}%` }} />
                 </div>
-                <a
-                  className="text-primary text-[10px] font-semibold flex items-center gap-0.5 hover:underline"
-                  href="/exposure"
-                >
-                  View Full Tracker{' '}
-                  <span className="material-symbols-outlined text-[12px]">arrow_forward</span>
-                </a>
+                <span className="text-primary text-[10px] font-semibold flex items-center gap-0.5">
+                  View full tracker <span className="material-symbols-outlined text-[12px]">arrow_forward</span>
+                </span>
               </div>
-            </div>
+            </button>
           </div>
 
-          <AqiMap
-            zones={mapZones}
-            center={[current.lat, current.lng]}
-            height="28vh"
-          />
+          {/* ── Live map ────────────────────────────────────────────── */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[9px] text-tertiary uppercase tracking-wider font-semibold">Live City Map</p>
+              <button onClick={() => navigate('/map')} className="text-primary text-[10px] font-semibold flex items-center gap-0.5">
+                Full map <span className="material-symbols-outlined text-[12px]">arrow_forward</span>
+              </button>
+            </div>
+            <AqiMap zones={mapZones} center={[current.lat, current.lng]} height="26vh" />
+          </div>
 
-          <AdvisoryPanel advisory={advisory} profile={profile} onProfileChange={setProfile} />
+          {/* ── Flood snapshot ──────────────────────────────────────── */}
+          {flood && (
+            <button onClick={() => navigate('/flood')} className="w-full bg-surface-container-lowest border border-outline-variant rounded-xl p-4 shadow-ambient text-left hover:border-secondary transition-colors">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-secondary">water</span>
+                  <h3 className="text-sm font-bold text-on-surface">River & Flood Status</h3>
+                </div>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${flood.anyFloodRisk ? 'bg-error/10 text-error' : 'bg-primary/10 text-primary'}`}>
+                  {flood.anyFloodRisk ? 'Elevated' : 'Normal'}
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {flood.rivers.map((r) => (
+                  <span key={r.id} className="flex items-center gap-1 px-2 py-1 rounded-full bg-surface-container/50 text-[10px]">
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: r.status.color }} />
+                    <span className="font-medium text-on-surface">{r.name}</span>
+                    <span className="text-on-surface-variant">{r.status.label}</span>
+                  </span>
+                ))}
+              </div>
+            </button>
+          )}
+
+          {/* ── Quick links ─────────────────────────────────────────── */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            {[
+              { label: 'Safe Habits', icon: 'health_and_safety', to: '/habits' },
+              { label: 'City Map', icon: 'map', to: '/map' },
+              { label: 'My Reports', icon: 'assignment', to: '/my-reports' },
+              { label: 'Profile', icon: 'person', to: '/profile' },
+            ].map((q) => (
+              <button key={q.to} onClick={() => navigate(q.to)} className="bg-surface-container-lowest border border-outline-variant rounded-xl p-3 flex flex-col items-center gap-1.5 hover:border-primary transition-colors">
+                <span className="material-symbols-outlined text-primary text-xl">{q.icon}</span>
+                <span className="text-[11px] font-medium text-on-surface">{q.label}</span>
+              </button>
+            ))}
+          </div>
         </>
       )}
     </div>
