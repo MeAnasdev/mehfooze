@@ -3,6 +3,8 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signOut as firebaseSignOut,
   onAuthStateChanged,
   User as FirebaseUser,
@@ -51,6 +53,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(firebaseUser ? mapUser(firebaseUser) : null)
       setLoading(false)
     })
+
+    // Handle Google redirect result (when popup is blocked)
+    getRedirectResult(auth).catch(() => {})
+
     return unsubscribe
   }, [])
 
@@ -67,7 +73,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const signInWithGoogle = async () => {
-    await signInWithPopup(auth, googleProvider)
+    try {
+      await signInWithPopup(auth, googleProvider)
+    } catch (err: unknown) {
+      // If popup blocked or closed, fallback to redirect
+      const code = (err as { code?: string }).code
+      if (code === 'auth/popup-blocked' || code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
+        await signInWithRedirect(auth, googleProvider)
+        return
+      }
+      throw err
+    }
   }
 
   return (

@@ -44,8 +44,15 @@ export default function LoginPage() {
     try {
       await signInWithGoogle()
       navigate('/', { replace: true })
-    } catch {
-      setError('Google sign-in was cancelled or failed.')
+    } catch (err: unknown) {
+      const code = (err as { code?: string }).code
+      if (code === 'auth/unauthorized-domain') {
+        setError('This domain is not authorized for Google sign-in. Please use email/password login, or contact the admin to add this domain to Firebase.')
+      } else if (code === 'auth/popup-blocked') {
+        setError('Popup was blocked by your browser. Please allow popups for this site and try again.')
+      } else {
+        setError('Google sign-in failed. Please try email/password login instead.')
+      }
       setLoading(false)
     }
   }
