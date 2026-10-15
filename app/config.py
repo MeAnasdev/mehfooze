@@ -41,26 +41,35 @@ class Settings(BaseSettings):
     app_env:   str = "development"
     log_level: str = "info"
 
+    # Railway auto-generates a URL like:
+    # https://mehfooze-production.up.railway.app
+    # Set RAILWAY_BACKEND_URL env var to that value once you have it.
+    railway_backend_url: str = ""
+
     @property
     def allowed_origins(self) -> List[str]:
-        if self.app_env == "production":
-            return [
-                "https://mehfooze-70snxg6mn-aperion4.vercel.app",
-                "https://web-brown-kappa-643kj0w95b.vercel.app",
-                "https://web-95jq38tja-aperion4.vercel.app",
-                "https://mehfooze.vercel.app",
-                "https://web-henna-nine-64.vercel.app",
-                "https://mehfooze.app",
-                "https://mehfooze-api.onrender.com",
-                "https://web-ten-phi-c7jw8ptxrq.vercel.app",
-                "https://web-hpkxpgqgo-aperion4.vercel.app",
-            ]
-        return [
-            "http://localhost:5173",
-            "http://127.0.0.1:5173",
-            "http://localhost:3000",
-            "http://localhost:8080",
+        origins = [
+            # All known Vercel deployment URLs
+            "https://mehfooze-70snxg6mn-aperion4.vercel.app",
+            "https://web-brown-kappa-643kj0w95b.vercel.app",
+            "https://web-95jq38tja-aperion4.vercel.app",
+            "https://mehfooze.vercel.app",
+            "https://web-henna-nine-64.vercel.app",
+            "https://web-ten-phi-c7jw8ptxrq.vercel.app",
+            "https://web-hpkxpgqgo-aperion4.vercel.app",
+            "https://mehfooze.app",
         ]
+        # Add Railway backend URL itself (for health checks etc.)
+        if self.railway_backend_url:
+            origins.append(self.railway_backend_url)
+        if self.app_env != "production":
+            origins += [
+                "http://localhost:5173",
+                "http://127.0.0.1:5173",
+                "http://localhost:3000",
+                "http://localhost:8080",
+            ]
+        return origins
 
 
 settings = Settings()
