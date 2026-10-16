@@ -42,9 +42,9 @@ class Settings(BaseSettings):
     log_level: str = "info"
 
     # Railway auto-generates a URL like:
-    # https://mehfooze-production.up.railway.app
-    # Set RAILWAY_BACKEND_URL env var to that value once you have it.
-    railway_backend_url: str = ""
+    # https://mehfooze-api-production.up.railway.app
+    # Backed by the RAILWAY_BACKEND_URL env var (overrides this default).
+    railway_backend_url: str = "https://mehfooze-api-production.up.railway.app"
 
     @property
     def allowed_origins(self) -> List[str]:
