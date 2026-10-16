@@ -23,7 +23,7 @@ COPY app/ ./app/
 
 # Railway injects PORT automatically
 ENV PORT=8000
-EXPOSE $PORT
+EXPOSE 8000
 
-# uvicorn starts the FastAPI app from /code/app/main.py
-CMD uvicorn app.main:app --host 0.0.0.0 --port $PORT
+# Use shell form so $PORT is expanded at runtime
+CMD sh -c "uvicorn app.main:app --host 0.0.0.0 --port ${PORT}"
